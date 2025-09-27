@@ -10,6 +10,10 @@ export type Movie = {
   director: string;
   cast: string[];
   available: boolean;
+  hasVideo?: boolean;
+  videoQualities?: string[];
+  fileSize?: number;
+  videoFormat?: string;
 }
 
 export type MovieRequest = {

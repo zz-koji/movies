@@ -18,6 +18,7 @@ import { MovieRequestForm } from './MovieRequestForm';
 import { LibraryStats } from './LibraryStats';
 import { MovieFilters } from './MovieFilters';
 import { RequestQueue } from './RequestQueue';
+import { MovieWatchPage } from './MovieWatchPage';
 import { getMovieLibrary } from '../api/movies';
 import { getMovieRequests, addMovieRequest, type ExtendedMovieRequest } from '../api/requests';
 import { useMovies } from '../hooks/useMovies';
@@ -38,6 +39,7 @@ export function MovieDashboard() {
 	const [sortBy, setSortBy] = useState<'featured' | 'rating' | 'year'>('featured');
 	const [loadingLibrary, setLoadingLibrary] = useState(true);
 	const [loadingRequests, setLoadingRequests] = useState(true);
+	const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
 	// Debounce the search query
 	useEffect(() => {
@@ -147,6 +149,14 @@ export function MovieDashboard() {
 		setRequests(prev => [newRequest, ...prev]);
 	};
 
+	const handleWatchMovie = (movie: Movie) => {
+		setSelectedMovie(movie);
+	};
+
+	const handleBackToLibrary = () => {
+		setSelectedMovie(null);
+	};
+
 	const clearFilters = () => {
 		setFilters({
 			query: '',
@@ -156,6 +166,15 @@ export function MovieDashboard() {
 			available: availability === 'all' ? undefined : availability === 'available'
 		});
 	};
+
+	if (selectedMovie) {
+		return (
+			<MovieWatchPage
+				movie={selectedMovie}
+				onBack={handleBackToLibrary}
+			/>
+		);
+	}
 
 	return (
 		<Container size="xl" py="xl">
@@ -224,7 +243,7 @@ export function MovieDashboard() {
 									<Grid gutter="lg">
 										{sortedMovies.map((movie) => (
 											<Grid.Col key={movie.id} span={{ base: 12, sm: 6, md: 4 }}>
-												<MovieCard movie={movie} />
+												<MovieCard movie={movie} onWatchClick={handleWatchMovie} />
 											</Grid.Col>
 										))}
 									</Grid>

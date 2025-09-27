@@ -15,11 +15,12 @@ import type { Movie } from '../types';
 
 interface MovieCardProps {
   movie: Movie;
+  onWatchClick?: (movie: Movie) => void;
 }
 
 const FALLBACK_POSTER = 'https://images.unsplash.com/photo-1524985069026-dd778a71c7b4?auto=format&fit=crop&w=600&q=80';
 
-export function MovieCard({ movie }: MovieCardProps) {
+export function MovieCard({ movie, onWatchClick }: MovieCardProps) {
   const topCast = movie.cast.slice(0, 3).join(', ');
 
   return (
@@ -93,11 +94,12 @@ export function MovieCard({ movie }: MovieCardProps) {
       <Group mt="lg" justify="space-between" gap="sm" align="stretch">
         <Button
           leftSection={<IconPlayerPlay size={16} />}
-          disabled={!movie.available}
-          color={movie.available ? 'cyan' : 'gray'}
+          disabled={!movie.available || !movie.hasVideo}
+          color={movie.available && movie.hasVideo ? 'cyan' : 'gray'}
           style={{ flex: 1 }}
+          onClick={() => movie.available && movie.hasVideo && onWatchClick?.(movie)}
         >
-          {movie.available ? 'Watch' : 'Coming Soon'}
+          {movie.hasVideo ? (movie.available ? 'Watch' : 'Coming Soon') : 'No Video'}
         </Button>
         <Tooltip label="Add to watchlist" withArrow>
           <ActionIcon
