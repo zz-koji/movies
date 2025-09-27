@@ -1,5 +1,16 @@
-import { useState } from 'react';
-import { Modal, TextInput, Textarea, Select, Button, Group } from '@mantine/core';
+import { useMemo, useState } from 'react';
+import {
+  Button,
+  Divider,
+  Group,
+  Modal,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+  Textarea
+} from '@mantine/core';
+import { IconBellPlus, IconMovie, IconUser } from './icons';
 import type { MovieRequest } from '../types';
 
 interface MovieRequestFormProps {
@@ -15,12 +26,16 @@ export function MovieRequestForm({ opened, onClose, onSubmit }: MovieRequestForm
   const [requestedBy, setRequestedBy] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
 
+  const isSubmitDisabled = useMemo(() => {
+    return !title.trim() || !requestedBy.trim();
+  }, [title, requestedBy]);
+
   const handleSubmit = () => {
-    if (!title.trim() || !requestedBy.trim()) return;
+    if (isSubmitDisabled) return;
 
     const request: MovieRequest = {
       title: title.trim(),
-      year: year ? parseInt(year) : undefined,
+      year: year ? parseInt(year, 10) : undefined,
       description: description.trim() || undefined,
       requestedBy: requestedBy.trim(),
       priority
@@ -36,65 +51,76 @@ export function MovieRequestForm({ opened, onClose, onSubmit }: MovieRequestForm
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Request a Movie" centered>
-      <TextInput
-        label="Movie Title"
-        placeholder="Enter movie title"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        required
-        mb="md"
-      />
+    <Modal opened={opened} onClose={onClose} title="Request a movie" centered radius="lg" size="lg">
+      <Stack gap="md">
+        <Text size="sm" c="dimmed">
+          Let us know what to queue up next. Requests are stored locally and reviewed before the next
+          sync run.
+        </Text>
 
-      <TextInput
-        label="Year"
-        placeholder="e.g. 2023"
-        value={year}
-        onChange={(e) => setYear(e.target.value)}
-        mb="md"
-      />
+        <TextInput
+          label="Movie title"
+          placeholder="Enter the exact movie name"
+          value={title}
+          onChange={(event) => setTitle(event.currentTarget.value)}
+          required
+          leftSection={<IconMovie size={16} />}
+        />
 
-      <Textarea
-        label="Description"
-        placeholder="Why would you like this movie added?"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        mb="md"
-        rows={3}
-      />
+        <Group grow>
+          <TextInput
+            label="Release year"
+            placeholder="e.g. 2024"
+            value={year}
+            onChange={(event) => setYear(event.currentTarget.value)}
+            maxLength={4}
+          />
+          <Select
+            label="Priority"
+            value={priority}
+            onChange={(value) => setPriority((value as typeof priority) ?? 'medium')}
+            data={[
+              { value: 'low', label: 'Low — grab when convenient' },
+              { value: 'medium', label: 'Medium — add to the shortlist' },
+              { value: 'high', label: 'High — next movie night pick' }
+            ]}
+          />
+        </Group>
 
-      <TextInput
-        label="Your Name"
-        placeholder="Enter your name"
-        value={requestedBy}
-        onChange={(e) => setRequestedBy(e.target.value)}
-        required
-        mb="md"
-      />
+        <Textarea
+          label="Why should we add this?"
+          placeholder="Add any notes, links, or preferred editions"
+          value={description}
+          onChange={(event) => setDescription(event.currentTarget.value)}
+          autosize
+          minRows={3}
+          maxLength={400}
+        />
 
-      <Select
-        label="Priority"
-        value={priority}
-        onChange={(value) => setPriority(value as 'low' | 'medium' | 'high')}
-        data={[
-          { value: 'low', label: 'Low' },
-          { value: 'medium', label: 'Medium' },
-          { value: 'high', label: 'High' }
-        ]}
-        mb="md"
-      />
+        <TextInput
+          label="Your name"
+          placeholder="Who is making this request?"
+          value={requestedBy}
+          onChange={(event) => setRequestedBy(event.currentTarget.value)}
+          required
+          leftSection={<IconUser size={16} />}
+        />
 
-      <Group justify="flex-end">
-        <Button variant="subtle" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          disabled={!title.trim() || !requestedBy.trim()}
-        >
-          Submit Request
-        </Button>
-      </Group>
+        <Divider my="sm" />
+
+        <Group justify="flex-end">
+          <Button variant="subtle" color="gray" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitDisabled}
+            leftSection={<IconBellPlus size={16} />}
+          >
+            Submit request
+          </Button>
+        </Group>
+      </Stack>
     </Modal>
   );
 }
