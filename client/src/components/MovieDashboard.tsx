@@ -20,6 +20,7 @@ import { MovieFilters } from './MovieFilters';
 import { RequestQueue } from './RequestQueue';
 import { getMovieLibrary } from '../api/movies';
 import { getMovieRequests, addMovieRequest, type ExtendedMovieRequest } from '../api/requests';
+import { useMovies } from '../hooks/useMovies';
 
 
 export function MovieDashboard() {
@@ -32,10 +33,30 @@ export function MovieDashboard() {
 		rating: undefined,
 		available: undefined
 	});
+	const [debouncedQuery, setDebouncedQuery] = useState('');
 	const [availability, setAvailability] = useState<'all' | 'available' | 'upcoming'>('all');
 	const [sortBy, setSortBy] = useState<'featured' | 'rating' | 'year'>('featured');
 	const [loadingLibrary, setLoadingLibrary] = useState(true);
 	const [loadingRequests, setLoadingRequests] = useState(true);
+
+	// Debounce the search query
+	useEffect(() => {
+		const timeoutId = setTimeout(() => {
+			setDebouncedQuery(filters.query);
+		}, 500);
+
+		return () => clearTimeout(timeoutId);
+	}, [filters.query]);
+
+	// Use React Query for server movie search with debounced query
+	const {
+		data: serverMoviesData,
+		isLoading: isSearching,
+		error: searchError
+	} = useMovies(
+		{ title: debouncedQuery, page: 1 },
+		!!debouncedQuery && debouncedQuery.length >= 2
+	);
 	const [requestModalOpened, { open: openRequestModal, close: closeRequestModal }] =
 		useDisclosure(false);
 
@@ -62,6 +83,25 @@ export function MovieDashboard() {
 	}, [availability]);
 
 	const filteredMovies = useMemo(() => {
+		// If there's a debounced search query and we have server results, show those
+		if (debouncedQuery && debouncedQuery.length >= 2 && serverMoviesData?.Search) {
+			// Convert server movies to local movie format for display
+			return serverMoviesData.Search.map((serverMovie: any) => ({
+				id: serverMovie.imdbID,
+				title: serverMovie.Title,
+				description: serverMovie.Plot || 'No description available',
+				year: parseInt(serverMovie.Year) || 0,
+				genre: serverMovie.Genre ? serverMovie.Genre.split(', ') : [],
+				rating: parseFloat(serverMovie.imdbRating) || 0,
+				duration: 0, // Not available from server
+				director: serverMovie.Director || 'Unknown',
+				cast: serverMovie.Actors ? serverMovie.Actors.split(', ') : [],
+				available: false, // Server movies are not in local library
+				poster: serverMovie.Poster !== 'N/A' ? serverMovie.Poster : undefined
+			}));
+		}
+
+		// Otherwise filter local movies
 		return movies.filter((movie) => {
 			if (filters.query && !movie.title.toLowerCase().includes(filters.query.toLowerCase())) {
 				return false;
@@ -80,7 +120,7 @@ export function MovieDashboard() {
 			}
 			return true;
 		});
-	}, [movies, filters]);
+	}, [movies, filters, debouncedQuery, serverMoviesData]);
 
 	const sortedMovies = useMemo(() => {
 		const moviesToSort = [...filteredMovies];
@@ -172,7 +212,7 @@ export function MovieDashboard() {
 									{sortedMovies.length} {sortedMovies.length === 1 ? 'movie' : 'movies'} found
 								</Text>
 
-								{loadingLibrary ? (
+								{(loadingLibrary || isSearching) ? (
 									<Grid gutter="lg">
 										{Array.from({ length: 6 }).map((_, index) => (
 											<Grid.Col key={index} span={{ base: 12, sm: 6, md: 4 }}>
@@ -190,12 +230,26 @@ export function MovieDashboard() {
 									</Grid>
 								)}
 
-								{!loadingLibrary && sortedMovies.length === 0 && (
+								{searchError && (
+									<Paper radius="lg" withBorder p="xl" ta="center">
+										<Stack gap="sm">
+											<Text fw={600} c="red">Search Error</Text>
+											<Text size="sm" c="dimmed">
+												{searchError instanceof Error ? searchError.message : 'Failed to search movies. Please try again.'}
+											</Text>
+										</Stack>
+									</Paper>
+								)}
+
+								{!loadingLibrary && !isSearching && sortedMovies.length === 0 && !searchError && (
 									<Paper radius="lg" withBorder p="xl" ta="center">
 										<Stack gap="sm">
 											<Text fw={600}>No movies found</Text>
 											<Text size="sm" c="dimmed">
-												Try adjusting your search filters.
+												{debouncedQuery && debouncedQuery.length >= 2
+													? 'No movies found for your search. Try a different title.'
+													: 'Try adjusting your search filters.'
+												}
 											</Text>
 										</Stack>
 									</Paper>
