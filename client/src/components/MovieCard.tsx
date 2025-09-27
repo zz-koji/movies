@@ -91,27 +91,20 @@ export function MovieCard({ movie }: MovieCardProps) {
       </Stack>
 
       <Group mt="lg" justify="space-between" gap="sm" align="stretch">
-        <Tooltip
-          label={movie.available ? 'Start streaming instantly' : 'We will notify the family once ready'}
-          position="top"
-          withArrow
+        <Button
+          leftSection={<IconPlayerPlay size={16} />}
+          disabled={!movie.available}
+          color={movie.available ? 'cyan' : 'gray'}
+          style={{ flex: 1 }}
         >
-          <Button
-            leftSection={<IconPlayerPlay size={16} />}
-            disabled={!movie.available}
-            color={movie.available ? 'cyan' : 'gray'}
-            style={{ flex: 1 }}
-          >
-            {movie.available ? 'Watch now' : 'Notify me'}
-          </Button>
-        </Tooltip>
-        <Tooltip label="Set an availability alert" withArrow>
+          {movie.available ? 'Watch' : 'Coming Soon'}
+        </Button>
+        <Tooltip label="Add to watchlist" withArrow>
           <ActionIcon
             variant="light"
             color="cyan"
             size="lg"
-            aria-label="Set availability alert"
-            disabled={movie.available}
+            aria-label="Add to watchlist"
           >
             <IconBellRinging size={18} />
           </ActionIcon>
