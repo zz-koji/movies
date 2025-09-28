@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
 	Button,
 	Container,
@@ -21,11 +21,11 @@ import { RequestQueue } from './RequestQueue';
 import { MovieWatchPage } from './MovieWatchPage';
 import { getMovieLibrary } from '../api/movies';
 import { getMovieRequests, addMovieRequest, type ExtendedMovieRequest } from '../api/requests';
-import { useMovies } from '../hooks/useMovies';
+import { useMovies, useMovieLibrary } from '../hooks/useMovies';
+import { useDebounce } from 'use-debounce';
 
 
 export function MovieDashboard() {
-	const [movies, setMovies] = useState<Movie[]>([]);
 	const [requests, setRequests] = useState<ExtendedMovieRequest[]>([]);
 	const [filters, setFilters] = useState<SearchFilters>({
 		query: '',
@@ -34,48 +34,16 @@ export function MovieDashboard() {
 		rating: undefined,
 		available: undefined
 	});
-	const [debouncedQuery, setDebouncedQuery] = useState('');
+	const [debouncedQuery] = useDebounce(filters.query, 1000);
 	const [availability, setAvailability] = useState<'all' | 'available' | 'upcoming'>('all');
 	const [sortBy, setSortBy] = useState<'featured' | 'rating' | 'year'>('featured');
 	const [loadingLibrary, setLoadingLibrary] = useState(true);
 	const [loadingRequests, setLoadingRequests] = useState(true);
 	const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
-	// Debounce the search query
-	useEffect(() => {
-		const timeoutId = setTimeout(() => {
-			setDebouncedQuery(filters.query);
-		}, 500);
 
-		return () => clearTimeout(timeoutId);
-	}, [filters.query]);
-
-	// Use React Query for server movie search with debounced query
-	const {
-		data: serverMoviesData,
-		isLoading: isSearching,
-		error: searchError
-	} = useMovies(
-		{ title: debouncedQuery, page: 1 },
-		!!debouncedQuery && debouncedQuery.length >= 2
-	);
 	const [requestModalOpened, { open: openRequestModal, close: closeRequestModal }] =
 		useDisclosure(false);
-
-	useEffect(() => {
-		const loadData = async () => {
-			const [library, requestQueue] = await Promise.all([
-				getMovieLibrary(),
-				getMovieRequests()
-			]);
-			setMovies(library);
-			setRequests(requestQueue);
-			setLoadingLibrary(false);
-			setLoadingRequests(false);
-		};
-
-		void loadData();
-	}, []);
 
 	useEffect(() => {
 		setFilters((prev) => ({
@@ -84,65 +52,12 @@ export function MovieDashboard() {
 		}));
 	}, [availability]);
 
-	const filteredMovies = useMemo(() => {
-		// If there's a debounced search query and we have server results, show those
-		if (debouncedQuery && debouncedQuery.length >= 2 && serverMoviesData?.Search) {
-			// Convert server movies to local movie format for display
-			return serverMoviesData.Search.map((serverMovie: any) => ({
-				id: serverMovie.imdbID,
-				title: serverMovie.Title,
-				description: serverMovie.Plot || 'No description available',
-				year: parseInt(serverMovie.Year) || 0,
-				genre: serverMovie.Genre ? serverMovie.Genre.split(', ') : [],
-				rating: parseFloat(serverMovie.imdbRating) || 0,
-				duration: 0, // Not available from server
-				director: serverMovie.Director || 'Unknown',
-				cast: serverMovie.Actors ? serverMovie.Actors.split(', ') : [],
-				available: false, // Server movies are not in local library
-				poster: serverMovie.Poster !== 'N/A' ? serverMovie.Poster : undefined
-			}));
-		}
+	const { movies } = useMovieLibrary({
+		filters,
+		debouncedQuery,
+		sortBy,
 
-		// Otherwise filter local movies
-		return movies.filter((movie) => {
-			if (filters.query && !movie.title.toLowerCase().includes(filters.query.toLowerCase())) {
-				return false;
-			}
-			if (filters.genre && !movie.genre.includes(filters.genre)) {
-				return false;
-			}
-			if (filters.year && movie.year !== filters.year) {
-				return false;
-			}
-			if (filters.rating && movie.rating < filters.rating) {
-				return false;
-			}
-			if (filters.available !== undefined && movie.available !== filters.available) {
-				return false;
-			}
-			return true;
-		});
-	}, [movies, filters, debouncedQuery, serverMoviesData]);
-
-	const sortedMovies = useMemo(() => {
-		const moviesToSort = [...filteredMovies];
-		switch (sortBy) {
-			case 'rating':
-				moviesToSort.sort((a, b) => b.rating - a.rating);
-				break;
-			case 'year':
-				moviesToSort.sort((a, b) => b.year - a.year);
-				break;
-			default:
-				moviesToSort.sort((a, b) => {
-					if (a.available === b.available) {
-						return b.rating - a.rating;
-					}
-					return a.available ? -1 : 1;
-				});
-		}
-		return moviesToSort;
-	}, [filteredMovies, sortBy]);
+	});
 
 	const handleMovieRequest = async (request: MovieRequest) => {
 		const newRequest = await addMovieRequest(request);
@@ -180,6 +95,7 @@ export function MovieDashboard() {
 		<Container size="xl" py="xl">
 			<Stack gap="xl">
 				<Paper radius="lg" p={{ base: 'lg', md: 'xl' }}>
+					Testicle
 					<Stack gap="lg">
 						<Group justify="space-between" align="center" wrap="wrap">
 							<Stack gap="xs">

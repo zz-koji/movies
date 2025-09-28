@@ -22,24 +22,38 @@ services:
   server:
     build:
       context: ./server
-      target: ${BUILD_TARGET:-development}
+      dockerfile: ${SERVER_DOCKERFILE:-Dockerfile.dev}
     container_name: movies-server
     restart: unless-stopped
     ports:
       - "0.0.0.0:${SERVER_PORT:-3000}:3000"
+    env_file: ${ENV_FILE:-.env.development}
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-koji}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-movies}
+    develop:
+      watch:
+        - action: sync
+          path: ./server/src
+          target: /usr/src/app/src
+        - action: sync
+          path: ./server/tsconfig.json
+          target: /usr/src/app/tsconfig.json
+        - action: sync
+          path: ./server/nest-cli.json
+          target: /usr/src/app/nest-cli.json
+        - action: rebuild
+          path: ./server/package.json
+        - action: rebuild
+          path: ./server/yarn.lock
     volumes:
-      # Only mount volumes in development
-      - ${DEV_VOLUMES:-./server:/usr/src/app}
-      - ${DEV_VOLUMES:-/usr/src/app/node_modules}
+      # Exclude node_modules from volume mount
+      - /usr/src/app/node_modules
     networks:
       - app_network
     depends_on:
       db:
         condition: service_healthy
-    command: ${SERVER_COMMAND:-yarn start:dev}
 
   frontend:
     build:
@@ -54,7 +68,36 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - VITE_PUBLIC_API_BASE_URL=${VITE_PUBLIC_API_BASE_URL:-/api}
-      - CHOKIDAR_USEPOLLING=${CHOKIDAR_USEPOLLING:-true}
+    develop:
+      watch:
+        - action: sync
+          path: ./client/src
+          target: /app/src
+        - action: sync
+          path: ./client/public
+          target: /app/public
+        - action: sync
+          path: ./client/index.html
+          target: /app/index.html
+        - action: sync
+          path: ./client/vite.config.ts
+          target: /app/vite.config.ts
+        - action: sync
+          path: ./client/tsconfig.json
+          target: /app/tsconfig.json
+        - action: sync
+          path: ./client/tsconfig.app.json
+          target: /app/tsconfig.app.json
+        - action: sync
+          path: ./client/tsconfig.node.json
+          target: /app/tsconfig.node.json
+        - action: rebuild
+          path: ./client/package.json
+        - action: rebuild
+          path: ./client/yarn.lock
+    volumes:
+      # Exclude node_modules from volume mount
+      - /app/node_modules
     networks:
       - app_network
     depends_on:
