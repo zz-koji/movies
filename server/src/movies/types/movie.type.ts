@@ -32,3 +32,15 @@ export const omdbMovieSchema = z.object({
 })
 
 export type OmdbMovie = z.infer<typeof omdbMovieSchema>
+
+export const localMovieSchema = z.object({
+	id: z.uuid(),
+	title: z.string(),
+	description: z.string(),
+	movie_file_key: z.string(),
+	subtitle_file_key: z.string(),
+})
+
+export type LocalMovie = z.infer<typeof localMovieSchema>
+
+

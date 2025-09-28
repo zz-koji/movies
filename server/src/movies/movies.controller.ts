@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { MoviesService } from './movies.service';
 import type { GetMoviesDto, GetMovieDto } from './types'
 
