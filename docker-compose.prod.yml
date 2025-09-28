@@ -1,33 +1,18 @@
 services:
-  db:
-    image: postgres:17
-    container_name: postgres-db
-    restart: unless-stopped
+  server:
+    build:
+      context: ./server
+      target: production
     environment:
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: movies
-      POSTGRES_USER: koji
-
-    ports:
-      - "5432:5432"
-
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-    networks:
-      - postgres_network
+      - NODE_ENV=production
+    volumes: []
+    command: ["node", "dist/main"]
 
   frontend:
-    build: ./client
+    build:
+      context: ./client
+      dockerfile: Dockerfile
     ports:
       - "0.0.0.0:80:80"
-    networks:
-      - postgres_network
-
-volumes:
-  postgres_data:
-    driver: local
-
-networks:
-  postgres_network:
-    driver: bridge
+    environment:
+      - NODE_ENV=production

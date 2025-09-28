@@ -54,3 +54,40 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# NestJS specific
+*.tsbuildinfo
+
+# Docker
+Dockerfile.dev
+.dockerignore
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# TypeScript cache
+*.tsbuildinfo
+
+# ESLint cache
+.eslintcache
+
+# Jest cache
+/jest_cache
+/.jest
+
+# Webpack cache
+.webpack_cache
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
