@@ -29,6 +29,19 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: local_movies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.local_movies (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    title character varying(50) NOT NULL,
+    description character varying(255) NOT NULL,
+    movie_file_key character varying(255) NOT NULL,
+    subtitle_file_key character varying(255)
+);
+
+
+--
 -- Name: movie_request; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -106,4 +119,5 @@ ALTER TABLE ONLY public.users
 INSERT INTO public.schema_migrations (version) VALUES
     ('20250928200447'),
     ('20250928210930'),
-    ('20250928225044');
+    ('20250928225044'),
+    ('20250928233737');
