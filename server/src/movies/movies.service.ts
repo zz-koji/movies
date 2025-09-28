@@ -2,8 +2,7 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { map } from 'rxjs';
-import { GetMoviesDto } from './types/get-movies.dto';
-import { GetMovieDto } from './types/get-movie.dto';
+import { GetMoviesDto, GetMovieDto } from './types'
 
 
 @Injectable()
