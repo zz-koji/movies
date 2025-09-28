@@ -35,8 +35,8 @@ RUN yarn install --production && yarn cache clean
 COPY --from=development /usr/src/app/dist ./dist
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nestjs -u 1001
+RUN groupadd -g 1001 nodejs
+RUN useradd -r -u 1001 -g nodejs nestjs
 
 # Change ownership of the application directory
 RUN chown -R nestjs:nodejs /usr/src/app

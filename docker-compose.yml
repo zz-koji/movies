@@ -5,10 +5,10 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
-      POSTGRES_DB: ${POSTGRES_DB:-movies_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-movies}
       POSTGRES_USER: ${POSTGRES_USER:-koji}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "0.0.0.0:${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -22,32 +22,39 @@ services:
   server:
     build:
       context: ./server
-      target: development
+      target: ${BUILD_TARGET:-development}
     container_name: movies-server
     restart: unless-stopped
     ports:
-      - "${SERVER_PORT:-3000}:3000"
+      - "0.0.0.0:${SERVER_PORT:-3000}:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-koji}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-movies}
     volumes:
-      - ./server:/usr/src/app
-      - /usr/src/app/node_modules
+      # Only mount volumes in development
+      - ${DEV_VOLUMES:-./server:/usr/src/app}
+      - ${DEV_VOLUMES:-/usr/src/app/node_modules}
     networks:
       - app_network
     depends_on:
       db:
         condition: service_healthy
-    command: yarn start:dev
+    command: ${SERVER_COMMAND:-yarn start:dev}
 
   frontend:
-    build: ./client
+    build:
+      context: ./client
+      dockerfile: ${CLIENT_DOCKERFILE:-Dockerfile.dev}
+      args:
+        - VITE_PUBLIC_API_BASE_URL=${VITE_PUBLIC_API_BASE_URL:-/api}
     container_name: movies-frontend
+    restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-80}:80"
+      - "0.0.0.0:${FRONTEND_PORT:-5173}:${FRONTEND_INTERNAL_PORT:-5173}"
     environment:
-      - CHOKIDAR_USEPOLLING=true
-      - REACT_APP_API_URL=http://localhost:${SERVER_PORT:-3000}
+      - NODE_ENV=${NODE_ENV:-development}
+      - VITE_PUBLIC_API_BASE_URL=${VITE_PUBLIC_API_BASE_URL:-/api}
+      - CHOKIDAR_USEPOLLING=${CHOKIDAR_USEPOLLING:-true}
     networks:
       - app_network
     depends_on:

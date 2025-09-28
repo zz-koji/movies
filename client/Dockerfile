@@ -1,9 +1,13 @@
 # build stage
 FROM node:22 AS build
 WORKDIR /app
+
+# Accept build args
+ARG VITE_PUBLIC_API_BASE_URL=/api
+
 COPY package.json yarn.lock .yarnrc.yml ./
 RUN corepack enable
-RUN yarn install 
+RUN yarn install
 COPY . .
 RUN yarn build
 
