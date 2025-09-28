@@ -10,6 +10,7 @@ import { Pool } from 'pg'
 		useFactory: (configService: ConfigService) => {
 			const dialect = new PostgresDialect({
 				pool: new Pool({
+					host: configService.getOrThrow('DB_HOST'),
 					user: configService.getOrThrow('POSTGRES_USER'),
 					password: configService.getOrThrow('POSTGRES_PASSWORD'),
 					database: configService.getOrThrow('POSTGRES_DB'),
