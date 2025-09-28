@@ -13,7 +13,6 @@ interface VideoPlayerProps {
 
 export function VideoPlayer({
   movieId,
-  movieTitle,
   autoPlay = false,
   availableQualities = ['1080p'],
   defaultQuality = '1080p'

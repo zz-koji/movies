@@ -11,7 +11,7 @@ import {
 	Title
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconMovie, IconBellPlus } from './icons';
+import { IconBellPlus } from './icons';
 import type { Movie, MovieRequest, SearchFilters } from '../types';
 import { MovieCard } from './MovieCard';
 import { MovieRequestForm } from './MovieRequestForm';
