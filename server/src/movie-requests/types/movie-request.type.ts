@@ -1,3 +1,4 @@
+import { Generated } from 'kysely'
 import { z } from 'zod/v4'
 
 export const movieRequestSchema = z.object({
@@ -9,3 +10,8 @@ export const movieRequestSchema = z.object({
 })
 
 export type MovieRequest = z.infer<typeof movieRequestSchema>
+export type MovieRequestTable = MovieRequest & { id: Generated<string> }
+
+export const createMovieRequestSchema = movieRequestSchema.omit({ id: true })
+
+export type CreateMovieRequestSchema = z.infer<typeof createMovieRequestSchema>
