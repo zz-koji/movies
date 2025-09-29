@@ -11,6 +11,9 @@ export const usersSchema = z.object({
 export const createUserSchema = usersSchema.omit({ id: true, date_created: true })
 export type CreateUserSchema = z.infer<typeof createUserSchema>
 
+export const updateUserSchema = createUserSchema.partial()
+export type UpdateUserSchema = z.infer<typeof updateUserSchema>
+
 export type User = z.infer<typeof usersSchema>
 export type UsersTable = User & { id: Generated<string>, date_created: Generated<Date> }
 
