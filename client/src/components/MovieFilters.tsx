@@ -39,7 +39,7 @@ export function MovieFilters({
         <Group justify="space-between" wrap="wrap" gap="sm">
           <SegmentedControl
             value={availability}
-            onChange={setAvailability}
+            onChange={(value) => setAvailability(value as 'all' | 'available' | 'upcoming')}
             data={[
               { label: 'All', value: 'all' },
               { label: 'Available', value: 'available' },

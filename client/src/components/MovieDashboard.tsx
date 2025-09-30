@@ -1,278 +1,240 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-	Button,
-	Container,
-	Grid,
-	Group,
-	Paper,
-	Skeleton,
-	Stack,
-	Text,
-	Title
+  Button,
+  Container,
+  Grid,
+  Group,
+  Paper,
+  Skeleton,
+  Stack,
+  Text,
+  Title
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconMovie, IconBellPlus } from './icons';
-import type { Movie, MovieRequest, SearchFilters } from '../types';
+import { IconBellPlus } from './icons';
+import type { LoginCredentials, Movie, MovieRequest, SearchFilters } from '../types';
 import { MovieCard } from './MovieCard';
 import { MovieRequestForm } from './MovieRequestForm';
 import { LibraryStats } from './LibraryStats';
 import { MovieFilters } from './MovieFilters';
 import { RequestQueue } from './RequestQueue';
+import { MovieWatchPage } from './MovieWatchPage';
 import { getMovieLibrary } from '../api/movies';
 import { getMovieRequests, addMovieRequest, type ExtendedMovieRequest } from '../api/requests';
-import { useMovies } from '../hooks/useMovies';
+import { useMovies, useMovieLibrary } from '../hooks/useMovies';
+import { useDebounce } from 'use-debounce';
+import { LoginModal } from './auth/LoginModal';
+import { login } from '../api/auth/login';
+import { useAuth } from '../context/AuthContext';
+import { IconLogin } from '@tabler/icons-react';
 
 
 export function MovieDashboard() {
-	const [movies, setMovies] = useState<Movie[]>([]);
-	const [requests, setRequests] = useState<ExtendedMovieRequest[]>([]);
-	const [filters, setFilters] = useState<SearchFilters>({
-		query: '',
-		genre: undefined,
-		year: undefined,
-		rating: undefined,
-		available: undefined
-	});
-	const [debouncedQuery, setDebouncedQuery] = useState('');
-	const [availability, setAvailability] = useState<'all' | 'available' | 'upcoming'>('all');
-	const [sortBy, setSortBy] = useState<'featured' | 'rating' | 'year'>('featured');
-	const [loadingLibrary, setLoadingLibrary] = useState(true);
-	const [loadingRequests, setLoadingRequests] = useState(true);
+  const [requests, setRequests] = useState<ExtendedMovieRequest[]>([]);
+  const [filters, setFilters] = useState<SearchFilters>({
+    query: '',
+    genre: undefined,
+    year: undefined,
+    rating: undefined,
+    available: undefined
+  });
+  const [debouncedQuery] = useDebounce(filters.query, 1000);
+  const [availability, setAvailability] = useState<'all' | 'available' | 'upcoming'>('all');
+  const [sortBy, setSortBy] = useState<'featured' | 'rating' | 'year'>('featured');
+  const [loadingRequests] = useState(false);
+  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
-	// Debounce the search query
-	useEffect(() => {
-		const timeoutId = setTimeout(() => {
-			setDebouncedQuery(filters.query);
-		}, 500);
+  const { loading: authLoading, user, setUser } = useAuth()
 
-		return () => clearTimeout(timeoutId);
-	}, [filters.query]);
+  const [requestModalOpened, { open: openRequestModal, close: closeRequestModal }] =
+    useDisclosure(false);
 
-	// Use React Query for server movie search with debounced query
-	const {
-		data: serverMoviesData,
-		isLoading: isSearching,
-		error: searchError
-	} = useMovies(
-		{ title: debouncedQuery, page: 1 },
-		!!debouncedQuery && debouncedQuery.length >= 2
-	);
-	const [requestModalOpened, { open: openRequestModal, close: closeRequestModal }] =
-		useDisclosure(false);
+  const [loginModalOpened, { open: openLoginModal, close: closeLoginModal }] = useDisclosure(false)
 
-	useEffect(() => {
-		const loadData = async () => {
-			const [library, requestQueue] = await Promise.all([
-				getMovieLibrary(),
-				getMovieRequests()
-			]);
-			setMovies(library);
-			setRequests(requestQueue);
-			setLoadingLibrary(false);
-			setLoadingRequests(false);
-		};
+  useEffect(() => {
+    setFilters((prev) => ({
+      ...prev,
+      available: availability === 'all' ? undefined : availability === 'available'
+    }));
+  }, [availability]);
 
-		void loadData();
-	}, []);
+  const { movies, isLoading: loadingLibrary, error } = useMovieLibrary({
+    filters,
+    debouncedQuery,
+    sortBy,
+  });
 
-	useEffect(() => {
-		setFilters((prev) => ({
-			...prev,
-			available: availability === 'all' ? undefined : availability === 'available'
-		}));
-	}, [availability]);
+  // TODO - Setup useMovieRequests()
 
-	const filteredMovies = useMemo(() => {
-		// If there's a debounced search query and we have server results, show those
-		if (debouncedQuery && debouncedQuery.length >= 2 && serverMoviesData?.Search) {
-			// Convert server movies to local movie format for display
-			return serverMoviesData.Search.map((serverMovie: any) => ({
-				id: serverMovie.imdbID,
-				title: serverMovie.Title,
-				description: serverMovie.Plot || 'No description available',
-				year: parseInt(serverMovie.Year) || 0,
-				genre: serverMovie.Genre ? serverMovie.Genre.split(', ') : [],
-				rating: parseFloat(serverMovie.imdbRating) || 0,
-				duration: 0, // Not available from server
-				director: serverMovie.Director || 'Unknown',
-				cast: serverMovie.Actors ? serverMovie.Actors.split(', ') : [],
-				available: false, // Server movies are not in local library
-				poster: serverMovie.Poster !== 'N/A' ? serverMovie.Poster : undefined
-			}));
-		}
+  const handleMovieRequest = async (request: MovieRequest) => {
+    const newRequest = await addMovieRequest(request);
+    setRequests(prev => [newRequest, ...prev]);
+  };
 
-		// Otherwise filter local movies
-		return movies.filter((movie) => {
-			if (filters.query && !movie.title.toLowerCase().includes(filters.query.toLowerCase())) {
-				return false;
-			}
-			if (filters.genre && !movie.genre.includes(filters.genre)) {
-				return false;
-			}
-			if (filters.year && movie.year !== filters.year) {
-				return false;
-			}
-			if (filters.rating && movie.rating < filters.rating) {
-				return false;
-			}
-			if (filters.available !== undefined && movie.available !== filters.available) {
-				return false;
-			}
-			return true;
-		});
-	}, [movies, filters, debouncedQuery, serverMoviesData]);
+  const handleLogin = async (credentials: LoginCredentials) => {
+    const loginResponse = await login(credentials)
+    const data = await loginResponse.json()
+    if (data.user) {
+      setUser(data.user)
+      closeLoginModal()
+    } else {
+      setUser(null)
+    }
+  }
 
-	const sortedMovies = useMemo(() => {
-		const moviesToSort = [...filteredMovies];
-		switch (sortBy) {
-			case 'rating':
-				moviesToSort.sort((a, b) => b.rating - a.rating);
-				break;
-			case 'year':
-				moviesToSort.sort((a, b) => b.year - a.year);
-				break;
-			default:
-				moviesToSort.sort((a, b) => {
-					if (a.available === b.available) {
-						return b.rating - a.rating;
-					}
-					return a.available ? -1 : 1;
-				});
-		}
-		return moviesToSort;
-	}, [filteredMovies, sortBy]);
+  const handleWatchMovie = (movie: Movie) => {
+    setSelectedMovie(movie);
+  };
 
-	const handleMovieRequest = async (request: MovieRequest) => {
-		const newRequest = await addMovieRequest(request);
-		setRequests(prev => [newRequest, ...prev]);
-	};
+  const handleBackToLibrary = () => {
+    setSelectedMovie(null);
+  };
 
-	const clearFilters = () => {
-		setFilters({
-			query: '',
-			genre: undefined,
-			year: undefined,
-			rating: undefined,
-			available: availability === 'all' ? undefined : availability === 'available'
-		});
-	};
+  const clearFilters = () => {
+    setFilters({
+      query: '',
+      genre: undefined,
+      year: undefined,
+      rating: undefined,
+      available: availability === 'all' ? undefined : availability === 'available'
+    });
+  };
 
-	return (
-		<Container size="xl" py="xl">
-			<Stack gap="xl">
-				<Paper radius="lg" p={{ base: 'lg', md: 'xl' }}>
-					<Stack gap="lg">
-						<Group justify="space-between" align="center" wrap="wrap">
-							<Stack gap="xs">
-								<Title order={1} fz={{ base: 24, sm: 32 }}>
-									Home Movie Library
-								</Title>
-								<Text size="lg" c="dimmed">
-									Stream your collection and request new movies for the household.
-								</Text>
-							</Stack>
-							<Button
-								leftSection={<IconBellPlus size={16} />}
-								onClick={openRequestModal}
-							>
-								Request Movie
-							</Button>
-						</Group>
-					</Stack>
-				</Paper>
+  if (selectedMovie) {
+    return (
+      <MovieWatchPage
+        movie={selectedMovie}
+        onBack={handleBackToLibrary}
+      />
+    );
+  }
 
-				<LibraryStats movies={movies} />
+  return (
+    <Container size="xl" py="xl">
+      <Stack gap="xl">
+        <Paper radius="lg" p={{ base: 'lg', md: 'xl' }}>
+          <Stack gap="lg">
+            <Group justify="space-between" align="center" wrap="wrap">
+              <Stack gap="xs">
+                <Title order={1} fz={{ base: 24, sm: 32 }}>
+                  Home Movie Library
+                </Title>
+                <Text size="lg" c="dimmed">
+                  Stream your collection and request new movies for the household.
+                </Text>
+              </Stack>
+              {user ? <Button
+                leftSection={<IconBellPlus size={16} />}
+                onClick={openRequestModal}
+              >
+                Request Movie
+              </Button>
+                :
 
-				<Grid gutter={{ base: 'lg', md: 'xl' }}>
-					<Grid.Col span={{ base: 12, lg: 9 }}>
-						<Paper withBorder radius="lg" p="lg">
-							<Stack gap="lg">
-								<Group justify="space-between" align="center">
-									<Stack gap={4}>
-										<Title order={2} size="h3">
-											Movie Library
-										</Title>
-										<Text size="sm" c="dimmed">
-											Browse and filter your movie collection.
-										</Text>
-									</Stack>
-								</Group>
+                <Button
+                  leftSection={<IconLogin size={16} />}
+                  onClick={openLoginModal}
+                >
+                  Login
+                </Button>
 
-								<MovieFilters
-									filters={filters}
-									setFilters={setFilters}
-									availability={availability}
-									setAvailability={setAvailability}
-									sortBy={sortBy}
-									setSortBy={setSortBy}
-									onClearFilters={clearFilters}
-								/>
+              }
+            </Group>
+          </Stack>
+        </Paper>
 
-								<Text size="sm" c="dimmed">
-									{sortedMovies.length} {sortedMovies.length === 1 ? 'movie' : 'movies'} found
-								</Text>
+        <LibraryStats movies={movies} />
 
-								{(loadingLibrary || isSearching) ? (
-									<Grid gutter="lg">
-										{Array.from({ length: 6 }).map((_, index) => (
-											<Grid.Col key={index} span={{ base: 12, sm: 6, md: 4 }}>
-												<Skeleton height={360} radius="lg" />
-											</Grid.Col>
-										))}
-									</Grid>
-								) : (
-									<Grid gutter="lg">
-										{sortedMovies.map((movie) => (
-											<Grid.Col key={movie.id} span={{ base: 12, sm: 6, md: 4 }}>
-												<MovieCard movie={movie} />
-											</Grid.Col>
-										))}
-									</Grid>
-								)}
+        <Grid gutter={{ base: 'lg', md: 'xl' }}>
+          <Grid.Col span={{ base: 12, lg: 9 }}>
+            <Paper withBorder radius="lg" p="lg">
+              <Stack gap="lg">
+                <Group justify="space-between" align="center">
+                  <Stack gap={4}>
+                    <Title order={2} size="h3">
+                      Movie Library
+                    </Title>
+                    <Text size="sm" c="dimmed">
+                      Browse and filter your movie collection.
+                    </Text>
+                  </Stack>
+                </Group>
 
-								{searchError && (
-									<Paper radius="lg" withBorder p="xl" ta="center">
-										<Stack gap="sm">
-											<Text fw={600} c="red">Search Error</Text>
-											<Text size="sm" c="dimmed">
-												{searchError instanceof Error ? searchError.message : 'Failed to search movies. Please try again.'}
-											</Text>
-										</Stack>
-									</Paper>
-								)}
+                <MovieFilters
+                  filters={filters}
+                  setFilters={setFilters}
+                  availability={availability}
+                  setAvailability={setAvailability}
+                  sortBy={sortBy}
+                  setSortBy={setSortBy}
+                  onClearFilters={clearFilters}
+                />
 
-								{!loadingLibrary && !isSearching && sortedMovies.length === 0 && !searchError && (
-									<Paper radius="lg" withBorder p="xl" ta="center">
-										<Stack gap="sm">
-											<Text fw={600}>No movies found</Text>
-											<Text size="sm" c="dimmed">
-												{debouncedQuery && debouncedQuery.length >= 2
-													? 'No movies found for your search. Try a different title.'
-													: 'Try adjusting your search filters.'
-												}
-											</Text>
-										</Stack>
-									</Paper>
-								)}
-							</Stack>
-						</Paper>
-					</Grid.Col>
+                <Text size="sm" c="dimmed">
+                  {movies.length} {movies.length === 1 ? 'movie' : 'movies'} found
+                </Text>
 
-					<Grid.Col span={{ base: 12, lg: 3 }}>
-						<RequestQueue
-							requests={requests}
-							loading={loadingRequests}
-							onOpenRequestModal={openRequestModal}
-						/>
-					</Grid.Col>
-				</Grid>
-			</Stack>
+                {(loadingLibrary) ? (
+                  <Grid gutter="lg">
+                    {Array.from({ length: 6 }).map((_, index) => (
+                      <Grid.Col key={index} span={{ base: 12, sm: 6, md: 4 }}>
+                        <Skeleton height={360} radius="lg" />
+                      </Grid.Col>
+                    ))}
+                  </Grid>
+                ) : (
+                  <Grid gutter="lg">
+                    {movies.map((movie) => (
+                      <Grid.Col key={movie.id} span={{ base: 12, sm: 6, md: 4 }}>
+                        <MovieCard movie={movie} onWatchClick={handleWatchMovie} />
+                      </Grid.Col>
+                    ))}
+                  </Grid>
+                )}
 
-			<MovieRequestForm
-				opened={requestModalOpened}
-				onClose={closeRequestModal}
-				onSubmit={handleMovieRequest}
-			/>
-		</Container>
-	);
+                {error && (
+                  <Paper radius="lg" withBorder p="xl" ta="center">
+                    <Stack gap="sm">
+                      <Text fw={600} c="red">Search Error</Text>
+                      <Text size="sm" c="dimmed">
+                        {error instanceof Error ? error.message : 'Failed to search movies. Please try again.'}
+                      </Text>
+                    </Stack>
+                  </Paper>
+                )}
+
+                {!loadingLibrary && movies.length === 0 && !error && (
+                  <Paper radius="lg" withBorder p="xl" ta="center">
+                    <Stack gap="sm">
+                      <Text fw={600}>No movies found</Text>
+                      <Text size="sm" c="dimmed">
+                        {debouncedQuery && debouncedQuery.length >= 2
+                          ? 'No movies found for your search. Try a different title.'
+                          : 'Try adjusting your search filters.'
+                        }
+                      </Text>
+                    </Stack>
+                  </Paper>
+                )}
+              </Stack>
+            </Paper>
+          </Grid.Col>
+
+          <Grid.Col span={{ base: 12, lg: 3 }}>
+            <RequestQueue
+              requests={requests}
+              loading={loadingRequests}
+              onOpenRequestModal={openRequestModal}
+            />
+          </Grid.Col>
+        </Grid>
+      </Stack>
+      <LoginModal opened={loginModalOpened} onClose={closeLoginModal} onSubmit={handleLogin} />
+      <MovieRequestForm
+        opened={requestModalOpened}
+        onClose={closeRequestModal}
+        onSubmit={handleMovieRequest}
+      />
+    </Container>
+  );
 }

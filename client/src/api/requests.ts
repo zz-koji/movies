@@ -6,26 +6,7 @@ export type ExtendedMovieRequest = MovieRequest & {
   status: 'queued' | 'processing' | 'completed';
 };
 
-const LOCAL_REQUESTS: ExtendedMovieRequest[] = [
-  {
-    id: 'rq-1',
-    title: 'Inside Out 2',
-    requestedBy: 'Alex',
-    priority: 'high',
-    description: 'Great for our next family movie night.',
-    submittedAt: '2 days ago',
-    status: 'queued'
-  },
-  {
-    id: 'rq-2',
-    title: 'Top Gun: Maverick',
-    requestedBy: 'Sam',
-    priority: 'medium',
-    description: 'Would love to watch the aerial sequences in 4K.',
-    submittedAt: '1 week ago',
-    status: 'processing'
-  }
-];
+const LOCAL_REQUESTS: ExtendedMovieRequest[] = [];
 
 export async function getMovieRequests(): Promise<ExtendedMovieRequest[]> {
   await new Promise(resolve => setTimeout(resolve, 200));
