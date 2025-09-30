@@ -1,4 +1,3 @@
-import { useMemo, useState } from 'react';
 import {
   Button,
   Divider,
@@ -10,8 +9,10 @@ import {
   TextInput,
   Textarea
 } from '@mantine/core';
+import { useForm } from '@mantine/form';
+import { zod4Resolver as zodResolver } from 'mantine-form-zod-resolver';
 import { IconBellPlus, IconMovie, IconUser } from './icons';
-import type { MovieRequest } from '../types';
+import { movieRequestSchema, type MovieRequest } from '../types';
 
 interface MovieRequestFormProps {
   opened: boolean;
@@ -20,107 +21,95 @@ interface MovieRequestFormProps {
 }
 
 export function MovieRequestForm({ opened, onClose, onSubmit }: MovieRequestFormProps) {
-  const [title, setTitle] = useState('');
-  const [year, setYear] = useState('');
-  const [description, setDescription] = useState('');
-  const [requestedBy, setRequestedBy] = useState('');
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const form = useForm({
+    initialValues: {
+      title: '',
+      year: '',
+      description: '',
+      requestedBy: '',
+      priority: 'medium' as 'low' | 'medium' | 'high'
+    },
+    validate: zodResolver(movieRequestSchema)
+  });
 
-  const isSubmitDisabled = useMemo(() => {
-    return !title.trim() || !requestedBy.trim();
-  }, [title, requestedBy]);
-
-  const handleSubmit = () => {
-    if (isSubmitDisabled) return;
-
+  const handleSubmit = form.onSubmit((values) => {
     const request: MovieRequest = {
-      title: title.trim(),
-      year: year ? parseInt(year, 10) : undefined,
-      description: description.trim() || undefined,
-      requestedBy: requestedBy.trim(),
-      priority
+      title: values.title.trim(),
+      year: values.year ? parseInt(values.year, 10) : undefined,
+      description: values.description?.trim() || undefined,
+      requestedBy: values.requestedBy.trim(),
+      priority: values.priority
     };
 
     onSubmit(request);
-    setTitle('');
-    setYear('');
-    setDescription('');
-    setRequestedBy('');
-    setPriority('medium');
+    form.reset();
     onClose();
-  };
+  });
 
   return (
     <Modal opened={opened} onClose={onClose} title="Request a movie" centered radius="lg" size="lg">
-      <Stack gap="md">
-        <Text size="sm" c="dimmed">
-          Let us know what to queue up next. Requests are stored locally and reviewed before the next
-          sync run.
-        </Text>
+      <form onSubmit={handleSubmit}>
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Let us know what to queue up next. Requests are stored locally and reviewed before the next
+            sync run.
+          </Text>
 
-        <TextInput
-          label="Movie title"
-          placeholder="Enter the exact movie name"
-          value={title}
-          onChange={(event) => setTitle(event.currentTarget.value)}
-          required
-          leftSection={<IconMovie size={16} />}
-        />
-
-        <Group grow>
           <TextInput
-            label="Release year"
-            placeholder="e.g. 2024"
-            value={year}
-            onChange={(event) => setYear(event.currentTarget.value)}
-            maxLength={4}
+            label="Movie title"
+            placeholder="Enter the exact movie name"
+            required
+            leftSection={<IconMovie size={16} />}
+            {...form.getInputProps('title')}
           />
-          <Select
-            label="Priority"
-            value={priority}
-            onChange={(value) => setPriority((value as typeof priority) ?? 'medium')}
-            data={[
-              { value: 'low', label: 'Low — grab when convenient' },
-              { value: 'medium', label: 'Medium — add to the shortlist' },
-              { value: 'high', label: 'High — next movie night pick' }
-            ]}
+
+          <Group grow>
+            <TextInput
+              label="Release year"
+              placeholder="e.g. 2024"
+              maxLength={4}
+              {...form.getInputProps('year')}
+            />
+            <Select
+              label="Priority"
+              data={[
+                { value: 'low', label: 'Low — grab when convenient' },
+                { value: 'medium', label: 'Medium — add to the shortlist' },
+                { value: 'high', label: 'High — next movie night pick' }
+              ]}
+              {...form.getInputProps('priority')}
+            />
+          </Group>
+
+          <Textarea
+            label="Why should we add this?"
+            placeholder="Add any notes, links, or preferred editions"
+            autosize
+            minRows={3}
+            maxLength={400}
+            {...form.getInputProps('description')}
           />
-        </Group>
 
-        <Textarea
-          label="Why should we add this?"
-          placeholder="Add any notes, links, or preferred editions"
-          value={description}
-          onChange={(event) => setDescription(event.currentTarget.value)}
-          autosize
-          minRows={3}
-          maxLength={400}
-        />
+          <TextInput
+            label="Your name"
+            placeholder="Who is making this request?"
+            required
+            leftSection={<IconUser size={16} />}
+            {...form.getInputProps('requestedBy')}
+          />
 
-        <TextInput
-          label="Your name"
-          placeholder="Who is making this request?"
-          value={requestedBy}
-          onChange={(event) => setRequestedBy(event.currentTarget.value)}
-          required
-          leftSection={<IconUser size={16} />}
-        />
+          <Divider my="sm" />
 
-        <Divider my="sm" />
-
-        <Group justify="flex-end">
-          <Button variant="subtle" color="gray" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={isSubmitDisabled}
-            leftSection={<IconBellPlus size={16} />}
-          >
-            Submit request
-          </Button>
-        </Group>
-      </Stack>
+          <Group justify="flex-end">
+            <Button variant="subtle" color="gray" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" leftSection={<IconBellPlus size={16} />}>
+              Submit request
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }

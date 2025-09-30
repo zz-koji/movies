@@ -1,7 +1,7 @@
-ACCESS_TOKEN=$(sh scripts/auth-flow.sh | jq -r '.accessToken')
+ACCESS_TOKEN=$(sh scripts/users/auth-flow.sh | jq -r '.accessToken')
 
 if [ -v ACCESS_TOKEN ]; then
-	echo "Successfully retrieved access token."
+	echo "Successfully retrieved access token. \n $ACCESS_TOKEN"
 fi
 
 WHO_AM_I_RESPONSE=$(http GET http://localhost:3000/auth/whoami Cookie:accessToken=$ACCESS_TOKEN)

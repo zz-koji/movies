@@ -12,7 +12,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconBellPlus } from './icons';
-import type { Movie, MovieRequest, SearchFilters } from '../types';
+import type { LoginCredentials, Movie, MovieRequest, SearchFilters } from '../types';
 import { MovieCard } from './MovieCard';
 import { MovieRequestForm } from './MovieRequestForm';
 import { LibraryStats } from './LibraryStats';
@@ -23,6 +23,10 @@ import { getMovieLibrary } from '../api/movies';
 import { getMovieRequests, addMovieRequest, type ExtendedMovieRequest } from '../api/requests';
 import { useMovies, useMovieLibrary } from '../hooks/useMovies';
 import { useDebounce } from 'use-debounce';
+import { LoginModal } from './auth/LoginModal';
+import { login } from '../api/auth/login';
+import { useAuth } from '../context/AuthContext';
+import { IconLogin } from '@tabler/icons-react';
 
 
 export function MovieDashboard() {
@@ -37,12 +41,15 @@ export function MovieDashboard() {
   const [debouncedQuery] = useDebounce(filters.query, 1000);
   const [availability, setAvailability] = useState<'all' | 'available' | 'upcoming'>('all');
   const [sortBy, setSortBy] = useState<'featured' | 'rating' | 'year'>('featured');
-  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [loadingRequests] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
+  const { loading: authLoading, user, setUser } = useAuth()
 
   const [requestModalOpened, { open: openRequestModal, close: closeRequestModal }] =
     useDisclosure(false);
+
+  const [loginModalOpened, { open: openLoginModal, close: closeLoginModal }] = useDisclosure(false)
 
   useEffect(() => {
     setFilters((prev) => ({
@@ -57,10 +64,23 @@ export function MovieDashboard() {
     sortBy,
   });
 
+  // TODO - Setup useMovieRequests()
+
   const handleMovieRequest = async (request: MovieRequest) => {
     const newRequest = await addMovieRequest(request);
     setRequests(prev => [newRequest, ...prev]);
   };
+
+  const handleLogin = async (credentials: LoginCredentials) => {
+    const loginResponse = await login(credentials)
+    const data = await loginResponse.json()
+    if (data.user) {
+      setUser(data.user)
+      closeLoginModal()
+    } else {
+      setUser(null)
+    }
+  }
 
   const handleWatchMovie = (movie: Movie) => {
     setSelectedMovie(movie);
@@ -93,7 +113,6 @@ export function MovieDashboard() {
     <Container size="xl" py="xl">
       <Stack gap="xl">
         <Paper radius="lg" p={{ base: 'lg', md: 'xl' }}>
-          Testicle
           <Stack gap="lg">
             <Group justify="space-between" align="center" wrap="wrap">
               <Stack gap="xs">
@@ -104,12 +123,22 @@ export function MovieDashboard() {
                   Stream your collection and request new movies for the household.
                 </Text>
               </Stack>
-              <Button
+              {user ? <Button
                 leftSection={<IconBellPlus size={16} />}
                 onClick={openRequestModal}
               >
                 Request Movie
               </Button>
+                :
+
+                <Button
+                  leftSection={<IconLogin size={16} />}
+                  onClick={openLoginModal}
+                >
+                  Login
+                </Button>
+
+              }
             </Group>
           </Stack>
         </Paper>
@@ -200,7 +229,7 @@ export function MovieDashboard() {
           </Grid.Col>
         </Grid>
       </Stack>
-
+      <LoginModal opened={loginModalOpened} onClose={closeLoginModal} onSubmit={handleLogin} />
       <MovieRequestForm
         opened={requestModalOpened}
         onClose={closeRequestModal}

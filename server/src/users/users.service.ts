@@ -5,39 +5,41 @@ import { createUserSchema, CreateUserSchema, updateUserSchema, UpdateUserSchema 
 
 @Injectable()
 export class UsersService {
-	constructor(@Inject('MOVIES_DATABASE') private readonly db: Kysely<Database>) { }
+  constructor(@Inject('MOVIES_DATABASE') private readonly db: Kysely<Database>) { }
 
 
-	async createUser(data: CreateUserSchema) {
-		const parsedValues = createUserSchema.parse(data)
-		return await this.db.insertInto('users').values(parsedValues).returning(['id', 'name', 'date_created']).executeTakeFirst()
-	}
+  async createUser(data: CreateUserSchema) {
+    const parsedValues = createUserSchema.parse(data)
+    return await this.db.insertInto('users').values(parsedValues).returning(['id', 'name', 'date_created']).executeTakeFirst()
+  }
 
-	async getPin({ name }: { name: string }) {
-		const user = await this.db.selectFrom('users').where('name', '=', name).select('pin').executeTakeFirst()
-		return user?.pin ?? new NotFoundException()
-	}
+  async getPin({ name }: { name: string }) {
+    const allUsers = await this.db.selectFrom('users').selectAll().execute()
+    console.log(allUsers)
+    const user = await this.db.selectFrom('users').where('name', 'ilike', name).select('pin').executeTakeFirstOrThrow(NotFoundException)
+    return user.pin
+  }
 
-	async getUser({ name, id }: { name?: string, id?: string }) {
-		let query = this.db.selectFrom('users')
+  async getUser({ name, id }: { name?: string, id?: string }) {
+    let query = this.db.selectFrom('users')
 
-		if (name) {
-			query = query.where('name', '=', name)
-		}
+    if (name) {
+      query = query.where('name', 'ilike', name)
+    }
 
-		if (id) {
-			query = query.where('id', '=', id)
-		}
+    if (id) {
+      query = query.where('id', '=', id)
+    }
 
-		return query.select(['id', 'name', 'date_created']).executeTakeFirst()
-	}
+    return query.select(['id', 'name', 'date_created']).executeTakeFirst()
+  }
 
-	async getUsers() {
-		return await this.db.selectFrom('users').select(['id', 'name', 'date_created']).execute()
-	}
+  async getUsers() {
+    return await this.db.selectFrom('users').select(['id', 'name', 'date_created']).execute()
+  }
 
-	async updateUser(id: string, values: UpdateUserSchema) {
-		updateUserSchema.parse(values)
-		return await this.db.updateTable('users').where('id', '=', id).set(values).returning(['id', 'name', 'date_created']).executeTakeFirst()
-	}
+  async updateUser(id: string, values: UpdateUserSchema) {
+    updateUserSchema.parse(values)
+    return await this.db.updateTable('users').where('id', '=', id).set(values).returning(['id', 'name', 'date_created']).executeTakeFirst()
+  }
 }
