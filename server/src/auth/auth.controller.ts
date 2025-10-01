@@ -10,7 +10,6 @@ export class AuthController {
 
   @Post('login')
   async authenticateUser(@Body() body: PinLogin, @Res({ passthrough: true }) response: Response) {
-    console.log(body)
     return await this.authService.login(body, response)
   }
 

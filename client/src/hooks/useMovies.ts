@@ -42,7 +42,6 @@ interface UseMovieLibraryParams {
   filters: SearchFilters;
   debouncedQuery: string;
   sortBy: 'featured' | 'rating' | 'year';
-  serverMoviesData?: { Search?: any[] };
 }
 
 export function useMovieLibrary({
@@ -51,13 +50,11 @@ export function useMovieLibrary({
   sortBy,
 }: UseMovieLibraryParams): { movies: Movie[], isLoading: boolean, error: Error | null } {
   const [movies, setMovies] = useState<Movie[]>([])
-  const isQuery = debouncedQuery !== "" && debouncedQuery.length >= 2 ? true : false
+  const isQuery = debouncedQuery.length >= 2
 
   useEffect(() => {
     const loadData = async () => {
-      const [library] = await Promise.all([
-        getMovieLibrary(),
-      ]);
+      const library = await getMovieLibrary();
       setMovies(library);
     };
 
@@ -74,14 +71,14 @@ export function useMovieLibrary({
   );
 
   useEffect(() => {
-    if (omdbMovies && omdbMovies.length > 0) {
-      const transformedOMDBMovies = transformOMDBTMovies(omdbMovies)
+    if (omdbMovies?.Search && omdbMovies.Search.length > 0) {
+      const transformedOMDBMovies = transformOMDBTMovies(omdbMovies.Search)
       const sortedTransformedOmdbMovies = sortMovies(transformedOMDBMovies)
       setMovies(sortedTransformedOmdbMovies)
-    } else {
+    } else if (isQuery && omdbMovies && !omdbMovies.Search) {
       setMovies([])
     }
-  }, [omdbMovies])
+  }, [omdbMovies, debouncedQuery, isQuery])
 
 
   const sortMovies = (movies: Movie[]) => {
