@@ -11,7 +11,7 @@ import { Client } from 'minio';
         return new Client({
           endPoint: configService.getOrThrow('MINIO_ENDPOINT'),
           port: configService.getOrThrow('MINIO_PORT'),
-          useSSL: configService.getOrThrow('MINIO_USE_SSL'),
+          useSSL: configService.getOrThrow('MINIO_USE_SSL') === "false" ? false : true,
           accessKey: configService.getOrThrow('MINIO_ACCESS_KEY'),
           secretKey: configService.getOrThrow('MINIO_SECRET_KEY')
         })

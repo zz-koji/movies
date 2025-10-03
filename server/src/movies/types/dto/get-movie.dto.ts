@@ -1,4 +1,4 @@
-export type GetMovieDto = {
-	id?: number;
-	title?: string;
-} & ({ id: number } | { title: string })
+export type GetMovieDto =
+  | { id: string; title?: never }
+  | { title: string; id?: never };
+

@@ -1,19 +1,20 @@
 import { HttpService } from '@nestjs/axios';
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { map } from 'rxjs';
-import { GetMoviesDto, GetMovieDto } from './types'
+import { lastValueFrom, map } from 'rxjs';
+import { GetMoviesDto, GetMovieDto, OmdbMovie, LocalMovie } from './types'
 import { UploadMovieDto } from './types/dto/upload-movie.dto';
 import { Client as MinioClient } from 'minio'
 import { Database } from 'src/database/types';
 import { extname } from 'path';
+import { Kysely } from 'kysely';
 
 
 @Injectable()
 export class MoviesService {
   private apiKey: string;
   private apiUrl: string;
-  constructor(private readonly httpService: HttpService, private readonly configService: ConfigService, @Inject('MINIO_CLIENT') private readonly minioClient: MinioClient) {
+  constructor(private readonly httpService: HttpService, private readonly configService: ConfigService, @Inject('MINIO_CLIENT') private readonly minioClient: MinioClient, @Inject('MOVIES_DATABASE') private readonly db: Kysely<Database>) {
     this.apiKey = this.configService.getOrThrow('MOVIES_API_KEY')
     this.apiUrl = this.configService.getOrThrow('MOVIES_API_URL')
   }
@@ -39,20 +40,48 @@ export class MoviesService {
     )
   }
 
-  async getMovie({ id, title }: GetMovieDto) {
+  getMovie({ id, title }: GetMovieDto) {
     const query = this.buildQuery([{ param: "i", value: id }, { param: "t", value: title }])
     return this.httpService.get(`${this.apiUrl}/${query}`).pipe(map(response => response.data))
   }
 
-  async uploadMovie(movie: UploadMovieDto) {
-    const bucket = 'movies'
-    const extension = extname(movie.originalname).toLowerCase()
-    const mimetype = movie.mimetype
-    const buffer = movie.buffer
-    const result = await this.minioClient.putObject(bucket, extension, buffer, buffer.length, {
-      'Content-Type': mimetype
-    })
+  async uploadMovie(movie: Express.Multer.File, omdbMovieId: string) {
+    const omdbMovie = await lastValueFrom(
+      this.getMovie({ id: omdbMovieId })
+    );
 
-    return result
+    const bucket = 'movies';
+    const fileName = movie.originalname.toLowerCase();
+    const mimetype = movie.mimetype;
+    const fileStream = movie.stream;
+
+    try {
+      const result = await this.minioClient.putObject(
+        bucket,
+        fileName,
+        fileStream,
+        fileStream.readableLength, // optional for streams, may omit
+        { 'Content-Type': mimetype },
+      );
+
+      const recordUpload = await this.db.insertInto('local_movies').values({
+        description: omdbMovie.Plot,
+        movie_file_key: fileName,
+        title: omdbMovie.Title,
+        omdb_id: omdbMovie.imdbID,
+      }).returningAll().executeTakeFirst();
+
+      return { upload: result, movie: recordUpload };
+
+    } catch (error) {
+      await this.minioClient.removeObject(bucket, fileName);
+      throw new BadRequestException(`Upload failed: ${error}`);
+    }
+  }
+
+  async streamMovie(omdbMovieId: string) {
+    const bucket = 'movies'
+    const movie = await this.db.selectFrom('local_movies').where('omdb_id', '=', omdbMovieId).select('local_movies.movie_file_key').executeTakeFirstOrThrow(() => { throw new NotFoundException('Request movie is not found.') })
+    return await this.minioClient.getObject(bucket, movie.movie_file_key)
   }
 }

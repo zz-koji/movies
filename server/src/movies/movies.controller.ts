@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Post, Query, Res, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { MoviesService } from './movies.service';
-import type { GetMoviesDto, GetMovieDto } from './types'
+import type { GetMoviesDto, GetMovieDto, OmdbMovie } from './types'
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FileValidationPipe } from 'src/file-validation/file-validation.pipe';
 
@@ -21,7 +21,13 @@ export class MoviesController {
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
-  async uploadMovie(@UploadedFile(new FileValidationPipe()) file: Express.Multer.File) {
-    return await this.moviesService.uploadMovie(file)
+  async uploadMovie(@UploadedFile(new FileValidationPipe()) file: Express.Multer.File, omdbMovieId: string) {
+    return await this.moviesService.uploadMovie(file, omdbMovieId)
+  }
+
+  @Get('stream')
+  async streamMovie(@Query('omdb_id') omdbMovieId: string) {
+    const movieStream = await this.moviesService.streamMovie(omdbMovieId)
+    return new StreamableFile(movieStream)
   }
 }
