@@ -3,6 +3,7 @@ import { MoviesService } from './movies.service';
 import type { GetMoviesDto, GetMovieDto, OmdbMovie } from './types'
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FileValidationPipe } from 'src/file-validation/file-validation.pipe';
+import { createReadStream } from 'fs';
 
 @Controller('movies')
 export class MoviesController {
@@ -15,13 +16,13 @@ export class MoviesController {
 
   @Get('movie')
   async getMovie(@Query() param: GetMovieDto) {
-    return await this.moviesService.getMovie(param)
+    return this.moviesService.getMovie(param)
   }
 
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
-  async uploadMovie(@UploadedFile(new FileValidationPipe()) file: Express.Multer.File, omdbMovieId: string) {
+  async uploadMovie(@UploadedFile(new FileValidationPipe()) file: Express.Multer.File, @Query('omdb_id') omdbMovieId: string) {
     return await this.moviesService.uploadMovie(file, omdbMovieId)
   }
 

@@ -11,7 +11,7 @@ async function bootstrap() {
     origin: process.env.FRONTEND_URL,
     credentials: true
   })
-  app.useGlobalFilters(new DatabaseExceptionFilter(), new ZodExceptionFilter(), new HttpExceptionFilter());
+  //  app.useGlobalFilters(new DatabaseExceptionFilter(), new ZodExceptionFilter(), new HttpExceptionFilter());
   app.use(cookieParser())
   await app.listen(process.env.PORT ?? 3000);
 }

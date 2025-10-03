@@ -32,6 +32,7 @@ services:
     env_file: ${ENV_FILE:-.env.development}
     environment:
       - NODE_ENV=${NODE_ENV:-development}
+      - MINIO_ENDPOINT=host.docker.internal
     develop:
       watch:
         - action: sync
@@ -55,6 +56,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   frontend:
     build:

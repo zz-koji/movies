@@ -8,6 +8,8 @@ import { Client as MinioClient } from 'minio'
 import { Database } from 'src/database/types';
 import { extname } from 'path';
 import { Kysely } from 'kysely';
+import { unlink } from 'fs/promises';
+import { createReadStream } from 'fs';
 
 
 @Injectable()
@@ -46,24 +48,26 @@ export class MoviesService {
   }
 
   async uploadMovie(movie: Express.Multer.File, omdbMovieId: string) {
-    const omdbMovie = await lastValueFrom(
-      this.getMovie({ id: omdbMovieId })
-    );
-
+    console.log(omdbMovieId)
     const bucket = 'movies';
     const fileName = movie.originalname.toLowerCase();
     const mimetype = movie.mimetype;
-    const fileStream = movie.stream;
+    const fileStream = createReadStream(movie.path);
 
     try {
       const result = await this.minioClient.putObject(
         bucket,
         fileName,
         fileStream,
-        fileStream.readableLength, // optional for streams, may omit
+        undefined, // optional for streams, may omit
         { 'Content-Type': mimetype },
       );
 
+      await unlink(movie.path)
+
+      const omdbMovie = await lastValueFrom(
+        this.getMovie({ id: omdbMovieId })
+      );
       const recordUpload = await this.db.insertInto('local_movies').values({
         description: omdbMovie.Plot,
         movie_file_key: fileName,
@@ -72,9 +76,9 @@ export class MoviesService {
       }).returningAll().executeTakeFirst();
 
       return { upload: result, movie: recordUpload };
-
     } catch (error) {
       await this.minioClient.removeObject(bucket, fileName);
+      console.log(error)
       throw new BadRequestException(`Upload failed: ${error}`);
     }
   }
