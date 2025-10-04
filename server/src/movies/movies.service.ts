@@ -186,12 +186,18 @@ export class MoviesService {
   }
 
   private static parseRangeHeader(rangeHeader: string, fileSize: number): RangeBounds | null {
+    // Match Range headers such as `bytes=0-500`; capture groups hold the start/end digits.
     const matches = /bytes=(\d*)-(\d*)/i.exec(rangeHeader)
+
     if (!matches) {
       return null
     }
 
+    // Extract the start and end ranges from matches.
+    // First element represents the entire matched string. i.e. bytes=0-500
+    // The following elements are the matched (group) strings. 0, 500
     const [, rawStart, rawEnd] = matches
+
 
     const hasStart = rawStart !== ''
     const hasEnd = rawEnd !== ''
@@ -207,12 +213,15 @@ export class MoviesService {
       return null
     }
 
+    // Suffix-byte range (`bytes=-N`)
     if (!hasStart && hasEnd) {
+      // `end` now represents the suffix length (last N bytes). Clamp so invalid negatives become 0.
       const suffixLength = Math.max(end, 0)
       if (suffixLength === 0) {
         return null
       }
 
+      // Start streaming from `fileSize - suffixLength` (e.g. bytes=-500 -> start=1000, end=1499).
       const suffixStart = Math.max(fileSize - suffixLength, 0)
       return { start: suffixStart, end: fileSize - 1 }
     }
@@ -221,6 +230,7 @@ export class MoviesService {
     start = Math.min(Math.max(start, 0), Math.max(fileSize - 1, 0))
 
     if (!hasEnd) {
+      // Open-ended range: stream a bounded window starting from `start`.
       const computedEnd = start + MoviesService.STREAM_CHUNK_SIZE - 1
       return { start, end: Math.min(computedEnd, Math.max(fileSize - 1, 0)) }
     }
@@ -244,23 +254,29 @@ export class MoviesService {
   }
 
   private async convertToFastStart(sourcePath: string): Promise<string> {
+    // Build file variables.
     const extension = extname(sourcePath) || '.mp4';
     const baseName = basename(sourcePath, extension);
     const directory = dirname(sourcePath);
     const targetPath = join(directory, `${baseName}.faststart${extension}`);
 
     await new Promise<void>((resolve, reject) => {
+      // Re-mux the upload with `+faststart` so metadata is available before the full download finishes.
+
       const ffmpeg = spawn(this.ffmpegBinary, ['-y', '-i', sourcePath, '-c', 'copy', '-movflags', '+faststart', targetPath]);
       let stderr = '';
 
+      // Listen for ffmpeg errors.
       ffmpeg.on('error', (error) => {
         reject(new Error(`FFmpeg error: ${error.message}`));
       });
 
+      // Capture ffmpeg stderr for detailed error messages.
       ffmpeg.stderr?.on('data', (chunk) => {
         stderr += chunk.toString();
       });
 
+      // Resolve on success; ensure the temp target is removed if encoding fails.
       ffmpeg.on('close', async (code) => {
         if (code === 0) {
           resolve();
