@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getMovies, getMovie, type GetMoviesRequest, type GetMovieRequest } from '../api/server';
 import type { Movie, SearchFilters } from '../types';
 import { getMovieLibrary } from '../api/movies';
 
-function transformOMDBTMovies(omdbMovies: any[]) {
+function transformOmdbMovies(omdbMovies: any[]) {
   return omdbMovies.map((serverMovie: any) => ({
     id: serverMovie.imdbID,
     title: serverMovie.Title,
@@ -53,17 +53,65 @@ export function useMovieLibrary({
   const [localLibrary, setLocalLibrary] = useState<Movie[]>([])
   const isQuery = debouncedQuery.length >= 2
 
+  const sortMovies = useCallback((list: Movie[]) => {
+    const sorted = [...list]
+    switch (sortBy) {
+      case 'rating':
+        return sorted.sort((a, b) => b.rating - a.rating)
+      case 'year':
+        return sorted.sort((a, b) => b.year - a.year)
+      default:
+        return sorted.sort((a, b) => {
+          if (a.available === b.available) {
+            return b.rating - a.rating
+          }
+          return a.available ? -1 : 1
+        })
+    }
+  }, [sortBy])
+
+  const applyFilters = useCallback((list: Movie[]) => {
+    const normalizedQuery = debouncedQuery.trim().toLowerCase()
+
+    return list.filter((movie) => {
+      if (normalizedQuery && !movie.title.toLowerCase().includes(normalizedQuery)) {
+        return false
+      }
+
+      if (filters.genre && !movie.genre.includes(filters.genre)) {
+        return false
+      }
+
+      if (filters.year && movie.year !== filters.year) {
+        return false
+      }
+
+      if (filters.rating && movie.rating < filters.rating) {
+        return false
+      }
+
+      if (typeof filters.available === 'boolean' && movie.available !== filters.available) {
+        return false
+      }
+
+      return true
+    })
+  }, [
+    debouncedQuery,
+    filters.available,
+    filters.genre,
+    filters.rating,
+    filters.year,
+  ])
+
   useEffect(() => {
     const loadData = async () => {
-      const library = await getMovieLibrary();
-      setLocalLibrary(library);
-      if (!isQuery) {
-        setMovies(library);
-      }
-    };
+      const library = await getMovieLibrary()
+      setLocalLibrary(library)
+    }
 
-    void loadData();
-  }, [isQuery]);
+    void loadData()
+  }, [])
 
   const {
     data: omdbMovies,
@@ -76,38 +124,29 @@ export function useMovieLibrary({
 
   useEffect(() => {
     if (!isQuery) {
-      setMovies(localLibrary);
-      return;
+      const filtered = applyFilters(localLibrary)
+      const sorted = sortMovies(filtered)
+      setMovies(sorted)
+      return
     }
 
-    if (omdbMovies?.Search && omdbMovies.Search.length > 0) {
-      const transformedOMDBMovies = transformOMDBTMovies(omdbMovies.Search)
-      const sortedTransformedOmdbMovies = sortMovies(transformedOMDBMovies)
-      setMovies(sortedTransformedOmdbMovies)
-    } else if (isQuery && omdbMovies && !omdbMovies.Search) {
+    if (omdbMovies?.Search?.length) {
+      const transformed = transformOmdbMovies(omdbMovies.Search)
+      setMovies(sortMovies(transformed))
+      return
+    }
+
+    if (!isLoading && isQuery) {
       setMovies([])
     }
-  }, [omdbMovies, debouncedQuery, isQuery, localLibrary])
-
-
-  const sortMovies = (movies: Movie[]) => {
-    switch (sortBy) {
-      case 'rating':
-        movies.sort((a, b) => b.rating - a.rating);
-        break;
-      case 'year':
-        movies.sort((a, b) => b.year - a.year);
-        break;
-      default:
-        movies.sort((a, b) => {
-          if (a.available === b.available) {
-            return b.rating - a.rating;
-          }
-          return a.available ? -1 : 1;
-        });
-    }
-    return movies;
-  }
+  }, [
+    applyFilters,
+    isLoading,
+    isQuery,
+    localLibrary,
+    omdbMovies,
+    sortMovies,
+  ])
 
 
   return {

@@ -54,9 +54,8 @@ export function MovieWatchPage({ movie, onBack }: MovieWatchPageProps) {
 								{movie.hasVideo ? (
 									<VideoPlayer
 										movieId={movie.id}
-										movieTitle={movie.title}
 										availableQualities={movie.videoQualities}
-										defaultQuality={movie.videoQualities?.[0] || '1080p'}
+										defaultQuality={movie.videoQualities?.[0]}
 										autoPlay={false}
 									/>
 								) : (

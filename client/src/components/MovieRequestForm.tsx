@@ -35,7 +35,7 @@ export function MovieRequestForm({ opened, onClose, onSubmit }: MovieRequestForm
   const handleSubmit = form.onSubmit((values) => {
     const request: MovieRequest = {
       title: values.title.trim(),
-      year: values.year ? parseInt(values.year, 10) : undefined,
+      year: values.year?.trim() || undefined,
       description: values.description?.trim() || undefined,
       requestedBy: values.requestedBy.trim(),
       priority: values.priority

@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import { basename, dirname, extname, join } from 'path';
 import { HttpService } from '@nestjs/axios';
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { lastValueFrom, map } from 'rxjs';
 import { GetMoviesDto, GetMovieDto } from './types'
@@ -10,10 +10,23 @@ import { Database } from 'src/database/types';
 import { Kysely } from 'kysely';
 import { unlink } from 'fs/promises';
 import { createReadStream } from 'fs';
+import type { Readable } from 'stream';
+
+interface MovieStreamResponse {
+  status: number;
+  headers: Record<string, string>;
+  stream: Readable | null;
+}
+
+interface RangeBounds {
+  start: number;
+  end: number;
+}
 
 
 @Injectable()
 export class MoviesService {
+  private static readonly STREAM_CHUNK_SIZE = 1_000_000; // ~1MB default range window
   private apiKey: string;
   private apiUrl: string;
   private bucket: string = 'movies';
@@ -25,17 +38,16 @@ export class MoviesService {
     this.ffmpegBinary = configuredBinary ?? process.env.FFMPEG_PATH ?? 'ffmpeg'
   }
 
-  private buildQuery(args: { param: string, value: string | number | undefined }[]): string {
-    let query: string = `?apiKey=${this.apiKey}`;
+  private buildQuery(args: { param: string, value: string | number | undefined | null }[]): string {
+    const params = new URLSearchParams({ apiKey: this.apiKey })
 
-    for (const queryPair of args) {
-      const param = queryPair['param']
-      const value = queryPair['value']
-
-      if (value) query = query + `&${param}=${value}`
+    for (const { param, value } of args) {
+      if (value !== undefined && value !== null && value !== '') {
+        params.set(param, String(value))
+      }
     }
 
-    return query
+    return `?${params.toString()}`
   }
 
   async getMovies({ title, page = 1 }: GetMoviesDto) {
@@ -120,6 +132,106 @@ export class MoviesService {
   async streamMovieRange(omdbMovieId: string, start: number, length: number) {
     const movieFileKey = await this.getMovieFileKey(omdbMovieId)
     return await this.minioClient.getPartialObject(this.bucket, movieFileKey, start, length)
+  }
+
+  async createStreamResponse(omdbMovieId: string, rangeHeader?: string): Promise<MovieStreamResponse> {
+    const movieStats = await this.getMovieStats(omdbMovieId)
+    const fileSize = movieStats.size
+    const contentType = movieStats.metaData?.['content-type'] ?? 'application/octet-stream'
+
+    const baseHeaders = {
+      'Accept-Ranges': 'bytes',
+      'Content-Type': contentType,
+    }
+
+    if (!rangeHeader) {
+      const stream = await this.streamMovie(omdbMovieId)
+      return {
+        status: HttpStatus.OK,
+        headers: {
+          ...baseHeaders,
+          'Content-Length': String(fileSize),
+        },
+        stream,
+      }
+    }
+
+    const range = MoviesService.parseRangeHeader(rangeHeader, fileSize)
+
+    if (!range) {
+      return {
+        status: HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE,
+        headers: {
+          ...baseHeaders,
+          'Content-Range': `bytes */${fileSize}`,
+        },
+        stream: null,
+      }
+    }
+
+    const { start, end } = range
+    const chunkSize = end - start + 1
+
+    const stream = await this.streamMovieRange(omdbMovieId, start, chunkSize)
+
+    return {
+      status: HttpStatus.PARTIAL_CONTENT,
+      headers: {
+        ...baseHeaders,
+        'Content-Length': String(chunkSize),
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      },
+      stream,
+    }
+  }
+
+  private static parseRangeHeader(rangeHeader: string, fileSize: number): RangeBounds | null {
+    const matches = /bytes=(\d*)-(\d*)/i.exec(rangeHeader)
+    if (!matches) {
+      return null
+    }
+
+    const [, rawStart, rawEnd] = matches
+
+    const hasStart = rawStart !== ''
+    const hasEnd = rawEnd !== ''
+
+    if (!hasStart && !hasEnd) {
+      return null
+    }
+
+    let start = hasStart ? Number.parseInt(rawStart, 10) : NaN
+    let end = hasEnd ? Number.parseInt(rawEnd, 10) : NaN
+
+    if ((hasStart && Number.isNaN(start)) || (hasEnd && Number.isNaN(end))) {
+      return null
+    }
+
+    if (!hasStart && hasEnd) {
+      const suffixLength = Math.max(end, 0)
+      if (suffixLength === 0) {
+        return null
+      }
+
+      const suffixStart = Math.max(fileSize - suffixLength, 0)
+      return { start: suffixStart, end: fileSize - 1 }
+    }
+
+    // At this point we have a starting position.
+    start = Math.min(Math.max(start, 0), Math.max(fileSize - 1, 0))
+
+    if (!hasEnd) {
+      const computedEnd = start + MoviesService.STREAM_CHUNK_SIZE - 1
+      return { start, end: Math.min(computedEnd, Math.max(fileSize - 1, 0)) }
+    }
+
+    end = Math.min(end, Math.max(fileSize - 1, 0))
+
+    if (start > end) {
+      return null
+    }
+
+    return { start, end }
   }
 
   async getLocalMovies() {

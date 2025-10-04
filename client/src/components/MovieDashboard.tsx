@@ -19,9 +19,8 @@ import { LibraryStats } from './LibraryStats';
 import { MovieFilters } from './MovieFilters';
 import { RequestQueue } from './RequestQueue';
 import { MovieWatchPage } from './MovieWatchPage';
-import { getMovieLibrary } from '../api/movies';
-import { getMovieRequests, addMovieRequest, type ExtendedMovieRequest } from '../api/requests';
-import { useMovies, useMovieLibrary } from '../hooks/useMovies';
+import { addMovieRequest, type ExtendedMovieRequest } from '../api/requests';
+import { useMovieLibrary } from '../hooks/useMovies';
 import { useDebounce } from 'use-debounce';
 import { LoginModal } from './auth/LoginModal';
 import { login } from '../api/auth/login';
@@ -44,7 +43,7 @@ export function MovieDashboard() {
   const [loadingRequests] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
-  const { loading: authLoading, user, setUser } = useAuth()
+  const { user, setUser } = useAuth()
 
   const [requestModalOpened, { open: openRequestModal, close: closeRequestModal }] =
     useDisclosure(false);
