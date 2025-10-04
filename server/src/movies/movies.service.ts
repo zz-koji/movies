@@ -16,6 +16,7 @@ import { createReadStream } from 'fs';
 export class MoviesService {
   private apiKey: string;
   private apiUrl: string;
+  private bucket: string = 'movies';
   constructor(private readonly httpService: HttpService, private readonly configService: ConfigService, @Inject('MINIO_CLIENT') private readonly minioClient: MinioClient, @Inject('MOVIES_DATABASE') private readonly db: Kysely<Database>) {
     this.apiKey = this.configService.getOrThrow('MOVIES_API_KEY')
     this.apiUrl = this.configService.getOrThrow('MOVIES_API_URL')
@@ -48,15 +49,13 @@ export class MoviesService {
   }
 
   async uploadMovie(movie: Express.Multer.File, omdbMovieId: string) {
-    console.log(omdbMovieId)
-    const bucket = 'movies';
     const fileName = movie.originalname.toLowerCase();
     const mimetype = movie.mimetype;
     const fileStream = createReadStream(movie.path);
 
     try {
       const result = await this.minioClient.putObject(
-        bucket,
+        this.bucket,
         fileName,
         fileStream,
         undefined, // optional for streams, may omit
@@ -77,15 +76,19 @@ export class MoviesService {
 
       return { upload: result, movie: recordUpload };
     } catch (error) {
-      await this.minioClient.removeObject(bucket, fileName);
+      await this.minioClient.removeObject(this.bucket, fileName);
       console.log(error)
       throw new BadRequestException(`Upload failed: ${error}`);
     }
   }
 
   async streamMovie(omdbMovieId: string) {
-    const bucket = 'movies'
     const movie = await this.db.selectFrom('local_movies').where('omdb_id', '=', omdbMovieId).select('local_movies.movie_file_key').executeTakeFirstOrThrow(() => { throw new NotFoundException('Request movie is not found.') })
-    return await this.minioClient.getObject(bucket, movie.movie_file_key)
+    return await this.minioClient.getObject(this.bucket, movie.movie_file_key)
+  }
+
+  async getMovieStats(omdbMovieId: string) {
+    const movie = await this.db.selectFrom('local_movies').where('omdb_id', '=', omdbMovieId).select('local_movies.movie_file_key').executeTakeFirstOrThrow()
+    return await this.minioClient.statObject(this.bucket, movie.movie_file_key)
   }
 }

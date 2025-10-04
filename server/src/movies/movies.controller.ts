@@ -4,6 +4,7 @@ import type { GetMoviesDto, GetMovieDto, OmdbMovie } from './types'
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FileValidationPipe } from 'src/file-validation/file-validation.pipe';
 import { createReadStream } from 'fs';
+import type { Response } from 'express';
 
 @Controller('movies')
 export class MoviesController {
@@ -19,7 +20,6 @@ export class MoviesController {
     return this.moviesService.getMovie(param)
   }
 
-
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   async uploadMovie(@UploadedFile(new FileValidationPipe()) file: Express.Multer.File, @Query('omdb_id') omdbMovieId: string) {
@@ -27,7 +27,9 @@ export class MoviesController {
   }
 
   @Get('stream')
-  async streamMovie(@Query('omdb_id') omdbMovieId: string) {
+  async streamMovie(@Query('omdb_id') omdbMovieId: string, @Res({ passthrough: true }) res: Response) {
+    const movieStats = await this.moviesService.getMovieStats(omdbMovieId)
+    res.set({ 'Content-Type': movieStats.metaData?.['content-type'], 'Accept-Ranges': 'bytes', 'Content-Length': movieStats.size })
     const movieStream = await this.moviesService.streamMovie(omdbMovieId)
     return new StreamableFile(movieStream)
   }
