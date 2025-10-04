@@ -50,16 +50,20 @@ export function useMovieLibrary({
   sortBy,
 }: UseMovieLibraryParams): { movies: Movie[], isLoading: boolean, error: Error | null } {
   const [movies, setMovies] = useState<Movie[]>([])
+  const [localLibrary, setLocalLibrary] = useState<Movie[]>([])
   const isQuery = debouncedQuery.length >= 2
 
   useEffect(() => {
     const loadData = async () => {
       const library = await getMovieLibrary();
-      setMovies(library);
+      setLocalLibrary(library);
+      if (!isQuery) {
+        setMovies(library);
+      }
     };
 
     void loadData();
-  }, []);
+  }, [isQuery]);
 
   const {
     data: omdbMovies,
@@ -71,6 +75,11 @@ export function useMovieLibrary({
   );
 
   useEffect(() => {
+    if (!isQuery) {
+      setMovies(localLibrary);
+      return;
+    }
+
     if (omdbMovies?.Search && omdbMovies.Search.length > 0) {
       const transformedOMDBMovies = transformOMDBTMovies(omdbMovies.Search)
       const sortedTransformedOmdbMovies = sortMovies(transformedOMDBMovies)
@@ -78,7 +87,7 @@ export function useMovieLibrary({
     } else if (isQuery && omdbMovies && !omdbMovies.Search) {
       setMovies([])
     }
-  }, [omdbMovies, debouncedQuery, isQuery])
+  }, [omdbMovies, debouncedQuery, isQuery, localLibrary])
 
 
   const sortMovies = (movies: Movie[]) => {

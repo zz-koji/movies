@@ -1,57 +1,30 @@
-interface StreamResponse {
-  streamUrl: string;
-  expiresIn: number;
-}
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
 interface StreamingService {
-  getMovieStreamUrl(movieId: string): Promise<string>;
-  getMovieStreamUrlWithQuality(movieId: string, quality: string): Promise<string>;
+  getMovieStreamUrl(movieId: string): string;
+  getMovieStreamUrlWithQuality(movieId: string, quality: string): string;
 }
 
 class ApiStreamingService implements StreamingService {
-  private baseUrl: string;
+  constructor(private readonly baseUrl: string) { }
 
-  constructor(baseUrl = '/api') {
-    this.baseUrl = baseUrl;
+  private buildStreamPath(movieId: string, quality?: string): string {
+    const params = new URLSearchParams({ omdb_id: movieId });
+    if (quality) {
+      params.set('quality', quality);
+    }
+    return `${this.baseUrl}/movies/stream?${params.toString()}`;
   }
 
-  async getMovieStreamUrl(movieId: string): Promise<string> {
-    const response = await fetch(`${this.baseUrl}/movies/${movieId}/stream`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to get stream URL: ${response.statusText}`);
-    }
-
-    const data: StreamResponse = await response.json();
-    return data.streamUrl;
+  getMovieStreamUrl(movieId: string): string {
+    return this.buildStreamPath(movieId);
   }
 
-  async getMovieStreamUrlWithQuality(movieId: string, quality: string): Promise<string> {
-    const response = await fetch(`${this.baseUrl}/movies/${movieId}/stream/${quality}`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to get stream URL for quality ${quality}: ${response.statusText}`);
-    }
-
-    const data: StreamResponse = await response.json();
-    return data.streamUrl;
+  getMovieStreamUrlWithQuality(movieId: string, quality: string): string {
+    return this.buildStreamPath(movieId, quality);
   }
 }
 
-class MockStreamingService implements StreamingService {
-  async getMovieStreamUrl(movieId: string): Promise<string> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return `https://sample-videos.com/zip/10/mp4/mp4/SampleVideo_1280x720_1mb.mp4?movieId=${movieId}`;
-  }
+export const streamingService: StreamingService = new ApiStreamingService(API_BASE_URL);
 
-  async getMovieStreamUrlWithQuality(movieId: string, quality: string): Promise<string> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return `https://sample-videos.com/zip/10/mp4/mp4/SampleVideo_1280x720_1mb.mp4?movieId=${movieId}&quality=${quality}`;
-  }
-}
-
-export const streamingService: StreamingService = process.env.NODE_ENV === 'development'
-  ? new MockStreamingService()
-  : new ApiStreamingService();
-
-export type { StreamingService, StreamResponse };
+export type { StreamingService };

@@ -1,6 +1,11 @@
 # Use Node.js 22 as base image
 FROM node:22 AS development
 
+# Install FFmpeg for video processing
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
+
 # Set working directory
 WORKDIR /usr/src/app
 
@@ -20,6 +25,11 @@ RUN yarn build
 
 # Production stage
 FROM node:22 AS production
+
+# Install FFmpeg for runtime uploads
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /usr/src/app
