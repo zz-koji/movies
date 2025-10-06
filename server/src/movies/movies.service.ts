@@ -1,16 +1,14 @@
-import { spawn } from 'child_process';
-import { basename, dirname, extname, join } from 'path';
-import { HttpService } from '@nestjs/axios';
-import { BadRequestException, HttpStatus, Inject, Injectable, NotFoundException, NotImplementedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { lastValueFrom, map } from 'rxjs';
-import { GetMoviesDto, GetMovieDto, GetLocalMoviesDto, LocalMovie, MovieMetadata, MovieMetadataInsert, OmdbMovie, omdbMovieSchema } from './types'
+import { BadRequestException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { GetMovieDto, GetLocalMoviesDto, omdbMovieSchema, GetMoviesDto, LocalMovie } from './types'
 import { Client as MinioClient } from 'minio'
 import { Database } from 'src/database/types';
-import { Kysely, sql } from 'kysely';
+import { Kysely } from 'kysely';
 import { unlink } from 'fs/promises';
 import { createReadStream } from 'fs';
 import type { Readable } from 'stream';
+import { FfmpegService } from 'src/ffmpeg/ffmpeg.service';
+import { OmdbApiService } from 'src/omdb-api/omdb-api.service';
+import { MetadataService } from 'src/metadata/metadata.service';
 
 interface MovieStreamResponse {
   status: number;
@@ -27,151 +25,48 @@ interface RangeBounds {
 @Injectable()
 export class MoviesService {
   private static readonly STREAM_CHUNK_SIZE = 1_000_000; // ~1MB default range window
-  private apiKey: string;
-  private apiUrl: string;
   private bucket: string = 'movies';
-  private readonly ffmpegBinary: string;
-  constructor(private readonly httpService: HttpService, private readonly configService: ConfigService, @Inject('MINIO_CLIENT') private readonly minioClient: MinioClient, @Inject('MOVIES_DATABASE') private readonly db: Kysely<Database>) {
-    this.apiKey = this.configService.getOrThrow('MOVIES_API_KEY')
-    this.apiUrl = this.configService.getOrThrow('MOVIES_API_URL')
-    const configuredBinary = this.configService.get('FFMPEG_PATH')
-    this.ffmpegBinary = configuredBinary ?? process.env.FFMPEG_PATH ?? 'ffmpeg'
+  constructor(
+    @Inject('MINIO_CLIENT') private readonly minioClient: MinioClient,
+    @Inject('MOVIES_DATABASE') private readonly db: Kysely<Database>,
+    private readonly ffmpegService: FfmpegService,
+    private readonly omdbService: OmdbApiService,
+    private readonly metadataService: MetadataService) {
   }
 
-  private buildQuery(args: { param: string, value: string | number | undefined | null }[]): string {
-    const params = new URLSearchParams({ apikey: this.apiKey })
-
-    for (const { param, value } of args) {
-      if (value !== undefined && value !== null && value !== '') {
-        params.set(param, String(value))
+  async getMovies(param: GetMoviesDto) {
+    if (param.title) {
+      const cached = await this.metadataService.getMoviesMetadataRows(param.title)
+      const cachedData = cached?.map(movie => { if (movie?.data) { return movie.data } })
+      if (Array.isArray(cachedData) && cached.length > 0) {
+        console.log('returning cached data')
+        return cachedData
       }
     }
 
-    return `?${params.toString()}`
-  }
+    const movies = await this.omdbService.getMovies({ title: param.title, page: param.page })
 
-  async getMovies({ title, page = 1 }: GetMoviesDto) {
-    const query = this.buildQuery([
-      { param: "s", value: title },
-      { param: "page", value: page },
-    ])
-
-    const request$ = this.httpService
-      .get(`${this.apiUrl}/${query}`)
-      .pipe(map((response) => response.data))
-
-    return await lastValueFrom(request$)
-  }
-
-  private async fetchMovieFromOmdb({ id, title }: GetMovieDto) {
-    const query = this.buildQuery([
-      { param: "i", value: id },
-      { param: "t", value: title },
-    ])
-
-    const request$ = this.httpService
-      .get(`${this.apiUrl}/${query}`)
-      .pipe(map((response) => response.data))
-
-    return await lastValueFrom(request$)
+    return movies
   }
 
   async getMovie(param: GetMovieDto) {
     if (param.id) {
-      const cached = await this.getMovieMetadataRow(param.id)
+      const cached = await this.metadataService.getMovieMetadataRow(param.id)
       if (cached?.data) {
         return cached.data
       }
     }
 
-    const movie = await this.fetchMovieFromOmdb(param)
+    const movie = await this.omdbService.getOmdbMovie(param)
 
-    if (MoviesService.isSuccessfulOmdbMovie(movie)) {
-      await this.upsertMovieMetadata(movie)
+    if (this.omdbService.isSuccessfulOmdbRequest(movie)) {
+      await this.metadataService.upsertMovieMetadata(movie)
     }
 
     return movie
   }
 
-  private async getMovieMetadataRow(omdbId: string): Promise<MovieMetadata | undefined> {
-    return await this.db
-      .selectFrom('movie_metadata')
-      .selectAll()
-      .where('omdb_id', '=', omdbId)
-      .executeTakeFirst()
-  }
 
-  private static isSuccessfulOmdbMovie(payload: unknown): payload is OmdbMovie {
-    return omdbMovieSchema.safeParse(payload).success
-  }
-
-  private static parseYear(value?: string | null): number | null {
-    if (!value) {
-      return null
-    }
-
-    const parsed = Number.parseInt(value, 10)
-    return Number.isNaN(parsed) ? null : parsed
-  }
-
-  private static parseRuntimeMinutes(value?: string | null): number | null {
-    if (!value) {
-      return null
-    }
-
-    const match = value.match(/(\d+)/)
-    if (!match) {
-      return null
-    }
-
-    const minutes = Number.parseInt(match[1] ?? '', 10)
-    return Number.isNaN(minutes) ? null : minutes
-  }
-
-  private static parseImdbRating(value?: string | null): number | null {
-    if (!value) {
-      return null
-    }
-
-    const parsed = Number.parseFloat(value)
-    return Number.isNaN(parsed) ? null : parsed
-  }
-
-  private static buildMetadataRecord(movie: OmdbMovie): MovieMetadataInsert {
-    return {
-      omdb_id: movie.imdbID,
-      title: movie.Title,
-      year: MoviesService.parseYear(movie.Year),
-      genre: movie.Genre || null,
-      director: movie.Director || null,
-      actors: movie.Actors || null,
-      imdb_rating: MoviesService.parseImdbRating(movie.imdbRating),
-      runtime: MoviesService.parseRuntimeMinutes(movie.Runtime),
-      data: movie,
-    }
-  }
-
-  private async upsertMovieMetadata(movie: OmdbMovie) {
-    const record = MoviesService.buildMetadataRecord(movie)
-
-    await this.db
-      .insertInto('movie_metadata')
-      .values(record)
-      .onConflict((oc) =>
-        oc.column('omdb_id').doUpdateSet({
-          title: record.title,
-          year: record.year,
-          genre: record.genre,
-          director: record.director,
-          actors: record.actors,
-          imdb_rating: record.imdb_rating,
-          runtime: record.runtime,
-          data: record.data,
-          updated_at: sql`now()`,
-        }),
-      )
-      .execute()
-  }
 
   async uploadMovie(movie: Express.Multer.File, omdbMovieId: string) {
     const fileName = movie.originalname.toLowerCase();
@@ -182,7 +77,7 @@ export class MoviesService {
     let uploadCompleted = false;
 
     try {
-      fastStartPath = await this.convertToFastStart(movie.path);
+      fastStartPath = await this.ffmpegService.convertToFastStart(movie.path);
       processedPath = fastStartPath;
     } catch (error) {
       await unlink(movie.path).catch(() => undefined);
@@ -437,7 +332,7 @@ export class MoviesService {
     return `%${escaped}%`
   }
 
-  async getLocalMovies(query: GetLocalMoviesDto = {}) {
+  private static resolveQuery(query: GetLocalMoviesDto) {
     const { page, limit } = MoviesService.resolveLocalMoviesPagination(query)
     const searchTerm = MoviesService.normalizeTextQueryParam(query.query)
     const searchPattern = MoviesService.buildSearchPattern(searchTerm)
@@ -447,6 +342,14 @@ export class MoviesService {
     const availabilityFilter = MoviesService.parseBooleanQueryParam(query.available)
     const offset = (page - 1) * limit
 
+    return {
+      pagination: { page, limit }, searchPattern, genreFilter, yearFilter, minRatingFilter, availabilityFilter, offset
+
+    }
+  }
+
+  async getLocalMovies(query: GetLocalMoviesDto = {}) {
+    const { availabilityFilter, genreFilter, minRatingFilter, offset, pagination: { page, limit }, searchPattern, yearFilter } = MoviesService.resolveQuery(query)
     if (availabilityFilter === false) {
       return {
         data: [],
@@ -554,9 +457,5 @@ export class MoviesService {
   async getMovieStats(omdbMovieId: string) {
     const movieFileKey = await this.getMovieFileKey(omdbMovieId)
     return await this.minioClient.statObject(this.bucket, movieFileKey)
-  }
-
-  private async convertToFastStart(sourcePath: string): Promise<string> {
-    throw new NotImplementedException(`This method needs to be imported by the FfmpegService.`)
   }
 }

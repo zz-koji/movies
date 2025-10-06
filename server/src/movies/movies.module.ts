@@ -6,9 +6,15 @@ import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { MinioModule } from 'src/minio/minio.module';
 import { DatabaseModule } from 'src/database/database.module';
+import { FfmpegModule } from 'src/ffmpeg/ffmpeg.module';
+import { OmdbApiModule } from 'src/omdb-api/omdb-api.module';
+import { MetadataModule } from 'src/metadata/metadata.module';
 
 @Module({
   imports: [HttpModule,
+    OmdbApiModule,
+    MetadataModule,
+    FfmpegModule,
     MulterModule.register({
       storage: diskStorage({
         destination: './uploads',

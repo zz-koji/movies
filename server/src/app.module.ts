@@ -7,6 +7,8 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { MinioModule } from './minio/minio.module';
 import { FfmpegModule } from './ffmpeg/ffmpeg.module';
+import { OmdbApiModule } from './omdb-api/omdb-api.module';
+import { MetadataModule } from './metadata/metadata.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { FfmpegModule } from './ffmpeg/ffmpeg.module';
     AuthModule,
     MinioModule,
     FfmpegModule,
+    OmdbApiModule,
+    MetadataModule,
   ],
 })
 export class AppModule {}

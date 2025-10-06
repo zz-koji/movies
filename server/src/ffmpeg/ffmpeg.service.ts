@@ -35,7 +35,6 @@ export class FfmpegService {
         stderr += chunk.toString();
       });
 
-      // Resolve on success; ensure the temp target is removed if encoding fails.
       ffmpeg.on('close', async (code) => {
         if (code === 0) {
           resolve();
