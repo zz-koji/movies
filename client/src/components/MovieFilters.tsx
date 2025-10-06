@@ -4,11 +4,11 @@ import type { SearchFilters } from '../types';
 
 interface MovieFiltersProps {
   filters: SearchFilters;
-  setFilters: (filters: SearchFilters) => void;
+  onFiltersChange: (filters: SearchFilters) => void;
   availability: 'all' | 'available' | 'upcoming';
-  setAvailability: (value: 'all' | 'available' | 'upcoming') => void;
-  sortBy: 'featured' | 'rating' | 'year';
-  setSortBy: (value: 'featured' | 'rating' | 'year') => void;
+  onAvailabilityChange: (value: 'all' | 'available' | 'upcoming') => void;
+  sortBy: 'title' | 'rating' | 'year';
+  onSortChange: (value: 'title' | 'rating' | 'year') => void;
   onClearFilters: () => void;
 }
 
@@ -26,20 +26,24 @@ const GENRES = [
 
 export function MovieFilters({
   filters,
-  setFilters,
+  onFiltersChange,
   availability,
-  setAvailability,
+  onAvailabilityChange,
   sortBy,
-  setSortBy,
+  onSortChange,
   onClearFilters
 }: MovieFiltersProps) {
+  const updateFilters = (patch: Partial<SearchFilters>) => {
+    onFiltersChange({ ...filters, ...patch });
+  };
+
   return (
     <Grid gutter="md">
       <Grid.Col span={12}>
         <Group justify="space-between" wrap="wrap" gap="sm">
           <SegmentedControl
             value={availability}
-            onChange={(value) => setAvailability(value as 'all' | 'available' | 'upcoming')}
+            onChange={(value) => onAvailabilityChange(value as 'all' | 'available' | 'upcoming')}
             data={[
               { label: 'All', value: 'all' },
               { label: 'Available', value: 'available' },
@@ -48,9 +52,9 @@ export function MovieFilters({
           />
           <Select
             value={sortBy}
-            onChange={(value) => setSortBy((value as typeof sortBy) ?? 'featured')}
+            onChange={(value) => onSortChange((value ?? 'title') as 'title' | 'rating' | 'year')}
             data={[
-              { value: 'featured', label: 'Featured' },
+              { value: 'title', label: 'Title' },
               { value: 'rating', label: 'Rating' },
               { value: 'year', label: 'Year' }
             ]}
@@ -64,9 +68,7 @@ export function MovieFilters({
         <TextInput
           placeholder="Search movies..."
           value={filters.query}
-          onChange={(event) =>
-            setFilters({ ...filters, query: event.currentTarget.value })
-          }
+          onChange={(event) => updateFilters({ query: event.currentTarget.value })}
           leftSection={<IconSearch size={16} />}
         />
       </Grid.Col>
@@ -75,9 +77,7 @@ export function MovieFilters({
         <Select
           placeholder="Genre"
           value={filters.genre}
-          onChange={(value) =>
-            setFilters({ ...filters, genre: value || undefined })
-          }
+          onChange={(value) => updateFilters({ genre: value || undefined })}
           data={GENRES}
           clearable
         />

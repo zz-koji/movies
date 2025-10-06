@@ -10,17 +10,19 @@ import {
   Text,
   Tooltip
 } from '@mantine/core';
-import { IconBellRinging, IconBookmark, IconPlayerPlay } from './icons';
+import { IconBellRinging, IconBookmark, IconPlayerPlay, IconTrash } from './icons';
 import type { Movie } from '../types';
 
 interface MovieCardProps {
   movie: Movie;
   onWatchClick?: (movie: Movie) => void;
+  onDeleteClick?: (movie: Movie) => void;
+  isDeleting?: boolean;
 }
 
 const FALLBACK_POSTER = 'https://images.unsplash.com/photo-1524985069026-dd778a71c7b4?auto=format&fit=crop&w=600&q=80';
 
-export function MovieCard({ movie, onWatchClick }: MovieCardProps) {
+export function MovieCard({ movie, onWatchClick, onDeleteClick, isDeleting = false }: MovieCardProps) {
   const topCast = movie.cast.slice(0, 3).join(', ');
 
   return (
@@ -65,11 +67,25 @@ export function MovieCard({ movie, onWatchClick }: MovieCardProps) {
               {movie.year} • {movie.duration} min • {movie.director}
             </Text>
           </Stack>
-          <Tooltip label="Add to watchlist" withArrow>
-            <ActionIcon variant="light" color="gray" aria-label="Add to watchlist">
-              <IconBookmark size={16} />
-            </ActionIcon>
-          </Tooltip>
+          {movie.available && onDeleteClick ? (
+            <Tooltip label="Delete movie" withArrow>
+              <ActionIcon
+                variant="light"
+                color="red"
+                aria-label="Delete movie"
+                disabled={isDeleting}
+                onClick={() => !isDeleting && onDeleteClick(movie)}
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Tooltip>
+          ) : (
+            <Tooltip label="Add to watchlist" withArrow>
+              <ActionIcon variant="light" color="gray" aria-label="Add to watchlist">
+                <IconBookmark size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
         </Group>
 
         <Group gap="xs">
@@ -91,7 +107,7 @@ export function MovieCard({ movie, onWatchClick }: MovieCardProps) {
         </Text>
       </Stack>
 
-      <Group mt="lg" justify="space-between" gap="sm" align="stretch">
+      <Group mt="lg" justify="space-between" gap="sm" align="stretch" wrap="wrap">
         <Button
           leftSection={<IconPlayerPlay size={16} />}
           disabled={!movie.available || !movie.hasVideo}
@@ -101,6 +117,16 @@ export function MovieCard({ movie, onWatchClick }: MovieCardProps) {
         >
           {movie.hasVideo ? (movie.available ? 'Watch' : 'Coming Soon') : 'No Video'}
         </Button>
+        {movie.available && onDeleteClick && (
+          <Button
+            variant="light"
+            color="red"
+            disabled={isDeleting}
+            onClick={() => !isDeleting && onDeleteClick(movie)}
+          >
+            {isDeleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        )}
         <Tooltip label="Add to watchlist" withArrow>
           <ActionIcon
             variant="light"

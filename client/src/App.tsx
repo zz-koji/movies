@@ -6,13 +6,13 @@ import { AuthProvider } from './context/AuthContext'
 const queryClient = new QueryClient()
 
 function App() {
-	return (
-		<AuthProvider>
-			<QueryClientProvider client={queryClient}>
-				<MovieDashboard />
-			</QueryClientProvider>
-		</AuthProvider>
-	)
+  return (
+    <AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <MovieDashboard />
+      </QueryClientProvider>
+    </AuthProvider>
+  )
 }
 
 export default App

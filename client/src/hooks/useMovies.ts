@@ -1,24 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getMovies, getMovie, type GetMoviesRequest, type GetMovieRequest } from '../api/server';
 import type { Movie, SearchFilters } from '../types';
-import { getMovieLibrary } from '../api/movies';
-
-function transformOmdbMovies(omdbMovies: any[]) {
-  return omdbMovies.map((serverMovie: any) => ({
-    id: serverMovie.imdbID,
-    title: serverMovie.Title,
-    description: serverMovie.Plot || 'No description available',
-    year: parseInt(serverMovie.Year) || 0,
-    genre: serverMovie.Genre ? serverMovie.Genre.split(', ') : [],
-    rating: parseFloat(serverMovie.imdbRating) || 0,
-    duration: 0, // Not available from server
-    director: serverMovie.Director || 'Unknown',
-    cast: serverMovie.Actors ? serverMovie.Actors.split(', ') : [],
-    available: false, // Server movies are not in local library
-    poster: serverMovie.Poster !== 'N/A' ? serverMovie.Poster : undefined
-  }));
-}
+import { getMovieLibrary, type MovieLibraryResult } from '../api/movies';
 
 export function useMovies(params: GetMoviesRequest, enabled: boolean = true) {
   return useQuery({
@@ -41,117 +25,169 @@ export function useMovie(params: GetMovieRequest, enabled: boolean = true) {
 interface UseMovieLibraryParams {
   filters: SearchFilters;
   debouncedQuery: string;
-  sortBy: 'featured' | 'rating' | 'year';
+  sortBy: 'title' | 'rating' | 'year';
 }
+
+const LOCAL_LIBRARY_PAGE_SIZE = 9;
 
 export function useMovieLibrary({
   filters,
   debouncedQuery,
   sortBy,
-}: UseMovieLibraryParams): { movies: Movie[], isLoading: boolean, error: Error | null } {
-  const [movies, setMovies] = useState<Movie[]>([])
-  const [localLibrary, setLocalLibrary] = useState<Movie[]>([])
-  const isQuery = debouncedQuery.length >= 2
+}: UseMovieLibraryParams): {
+  movies: Movie[];
+  isLoading: boolean;
+  error: Error | null;
+  reloadLocalLibrary: () => Promise<void>;
+  loadMoreLocalMovies: () => Promise<void>;
+  hasMoreLocalMovies: boolean;
+  isLoadingMoreLocalMovies: boolean;
+  isSearching: boolean;
+} {
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [localLibrary, setLocalLibrary] = useState<Movie[]>([]);
+  const [localPagination, setLocalPagination] = useState<MovieLibraryResult['pagination']>({
+    page: 0,
+    limit: LOCAL_LIBRARY_PAGE_SIZE,
+    total: 0,
+    totalPages: 0,
+    hasNextPage: false,
+  });
+  const [localError, setLocalError] = useState<Error | null>(null);
+  const [isLoadingLocalLibrary, setIsLoadingLocalLibrary] = useState(false);
+  const [activeQuery, setActiveQuery] = useState<string | undefined>(undefined);
+  const activeFiltersRef = useRef<Partial<Omit<SearchFilters, 'query'>>>({});
+
+  const isQuery = debouncedQuery.trim().length >= 2;
 
   const sortMovies = useCallback((list: Movie[]) => {
-    const sorted = [...list]
+    const sorted = [...list];
     switch (sortBy) {
       case 'rating':
-        return sorted.sort((a, b) => b.rating - a.rating)
+        return sorted.sort((a, b) => b.rating - a.rating);
       case 'year':
-        return sorted.sort((a, b) => b.year - a.year)
+        return sorted.sort((a, b) => b.year - a.year);
+      case 'title':
       default:
-        return sorted.sort((a, b) => {
-          if (a.available === b.available) {
-            return b.rating - a.rating
-          }
-          return a.available ? -1 : 1
-        })
+        return sorted.sort((a, b) => a.title.localeCompare(b.title));
     }
-  }, [sortBy])
+  }, [sortBy]);
 
-  const applyFilters = useCallback((list: Movie[]) => {
-    const normalizedQuery = debouncedQuery.trim().toLowerCase()
+  const loadLocalLibrary = useCallback(async ({
+    page = 1,
+    append = false,
+    query,
+  }: { page?: number; append?: boolean; query?: string } = {}) => {
+    setIsLoadingLocalLibrary(true);
 
-    return list.filter((movie) => {
-      if (normalizedQuery && !movie.title.toLowerCase().includes(normalizedQuery)) {
-        return false
+    const normalizedQuery = query?.trim();
+    const currentFilters: Partial<Omit<SearchFilters, 'query'>> = {
+      genre: filters.genre,
+      year: filters.year,
+      rating: filters.rating,
+      available: filters.available,
+    };
+    const effectiveFilters = append ? activeFiltersRef.current : currentFilters;
+
+    if (!append) {
+      setLocalLibrary([]);
+      setActiveQuery(normalizedQuery);
+      activeFiltersRef.current = { ...currentFilters };
+    } else if (normalizedQuery !== undefined && normalizedQuery !== activeQuery) {
+      setActiveQuery(normalizedQuery);
+    }
+
+    try {
+      const requestOptions: Parameters<typeof getMovieLibrary>[0] = {
+        page,
+        limit: LOCAL_LIBRARY_PAGE_SIZE,
+        ...(normalizedQuery ? { query: normalizedQuery } : {}),
+      };
+
+      if (effectiveFilters?.genre) {
+        requestOptions.genre = effectiveFilters.genre;
       }
 
-      if (filters.genre && !movie.genre.includes(filters.genre)) {
-        return false
+      if (typeof effectiveFilters?.year === 'number') {
+        requestOptions.year = effectiveFilters.year;
       }
 
-      if (filters.year && movie.year !== filters.year) {
-        return false
+      if (typeof effectiveFilters?.rating === 'number') {
+        requestOptions.rating = effectiveFilters.rating;
       }
 
-      if (filters.rating && movie.rating < filters.rating) {
-        return false
+      if (typeof effectiveFilters?.available === 'boolean') {
+        requestOptions.available = effectiveFilters.available;
       }
 
-      if (typeof filters.available === 'boolean' && movie.available !== filters.available) {
-        return false
-      }
+      const { movies: pageMovies, pagination } = await getMovieLibrary({
+        ...requestOptions,
+      });
 
-      return true
-    })
-  }, [
-    debouncedQuery,
-    filters.available,
-    filters.genre,
-    filters.rating,
-    filters.year,
-  ])
+      setLocalPagination(pagination);
+      setLocalError(null);
+      setLocalLibrary((prev) => (append ? [...prev, ...pageMovies] : pageMovies));
+    } catch (error) {
+      console.error('Failed to load local library', error);
+      const normalizedError = error instanceof Error
+        ? error
+        : new Error('Failed to load local library');
+      setLocalError(normalizedError);
+
+      if (!append) {
+        setLocalLibrary([]);
+        setLocalPagination({
+          page,
+          limit: LOCAL_LIBRARY_PAGE_SIZE,
+          total: 0,
+          totalPages: 0,
+          hasNextPage: false,
+        });
+        setActiveQuery(undefined);
+        activeFiltersRef.current = {};
+      }
+    } finally {
+      setIsLoadingLocalLibrary(false);
+    }
+  }, [activeQuery, filters.available, filters.genre, filters.rating, filters.year]);
+
+  const reloadLocalLibrary = useCallback(async () => {
+    await loadLocalLibrary({ page: 1, append: false, query: activeQuery });
+  }, [activeQuery, loadLocalLibrary]);
+
+  const loadMoreLocalMovies = useCallback(async () => {
+    if (isLoadingLocalLibrary || !localPagination.hasNextPage) {
+      return;
+    }
+
+    await loadLocalLibrary({
+      page: localPagination.page + 1,
+      append: true,
+      query: activeQuery,
+    });
+  }, [activeQuery, isLoadingLocalLibrary, loadLocalLibrary, localPagination]);
 
   useEffect(() => {
-    const loadData = async () => {
-      const library = await getMovieLibrary()
-      setLocalLibrary(library)
-    }
-
-    void loadData()
-  }, [])
-
-  const {
-    data: omdbMovies,
-    isLoading,
-    error
-  } = useMovies(
-    { title: debouncedQuery, page: 1 },
-    isQuery
-  );
+    const queryParam = isQuery ? debouncedQuery : undefined;
+    void loadLocalLibrary({ page: 1, append: false, query: queryParam });
+  }, [debouncedQuery, isQuery, loadLocalLibrary]);
 
   useEffect(() => {
-    if (!isQuery) {
-      const filtered = applyFilters(localLibrary)
-      const sorted = sortMovies(filtered)
-      setMovies(sorted)
-      return
-    }
+    setMovies(sortMovies(localLibrary));
+  }, [localLibrary, sortMovies]);
 
-    if (omdbMovies?.Search?.length) {
-      const transformed = transformOmdbMovies(omdbMovies.Search)
-      setMovies(sortMovies(transformed))
-      return
-    }
-
-    if (!isLoading && isQuery) {
-      setMovies([])
-    }
-  }, [
-    applyFilters,
-    isLoading,
-    isQuery,
-    localLibrary,
-    omdbMovies,
-    sortMovies,
-  ])
-
+  const combinedLoading = isLoadingLocalLibrary && movies.length === 0;
+  const combinedError = localError;
+  const isLoadingMoreLocalMovies = isLoadingLocalLibrary && localLibrary.length > 0;
 
   return {
     movies,
-    isLoading,
-    error
+    isLoading: combinedLoading,
+    error: combinedError,
+    reloadLocalLibrary,
+    loadMoreLocalMovies,
+    hasMoreLocalMovies: localPagination.hasNextPage,
+    isLoadingMoreLocalMovies,
+    isSearching: Boolean(activeQuery && activeQuery.length >= 2),
   };
 }

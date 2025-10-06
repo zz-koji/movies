@@ -1,4 +1,4 @@
-\restrict WCnNubl3mvDUZflIKGIWzCmPxSUFsjJ3Xr0ehx1kZfhs6ubHFlomTE2a5aJS4gM
+\restrict Ss0DmleGPscXYwpr0jCu7KJamoHeFDEeSJXvjNLqZkj4qR48LYUUdqxgFWFwzoU
 
 -- Dumped from database version 17.6 (Debian 17.6-2.pgdg13+1)
 -- Dumped by pg_dump version 17.6
@@ -48,6 +48,25 @@ CREATE TABLE public.local_movies (
 
 
 --
+-- Name: movie_metadata; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.movie_metadata (
+    omdb_id character varying(255) NOT NULL,
+    title character varying(255) NOT NULL,
+    year integer,
+    genre text,
+    director text,
+    actors text,
+    imdb_rating numeric(3,1),
+    runtime integer,
+    data jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: movie_request; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -79,6 +98,22 @@ CREATE TABLE public.users (
     date_created date DEFAULT now(),
     pin character varying(6)
 );
+
+
+--
+-- Name: local_movies local_movies_omdb_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.local_movies
+    ADD CONSTRAINT local_movies_omdb_id_key UNIQUE (omdb_id);
+
+
+--
+-- Name: movie_metadata movie_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.movie_metadata
+    ADD CONSTRAINT movie_metadata_pkey PRIMARY KEY (omdb_id);
 
 
 --
@@ -114,10 +149,31 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: idx_movie_metadata_genre; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_movie_metadata_genre ON public.movie_metadata USING gin (to_tsvector('simple'::regconfig, COALESCE(genre, ''::text)));
+
+
+--
+-- Name: idx_movie_metadata_title; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_movie_metadata_title ON public.movie_metadata USING gin (to_tsvector('simple'::regconfig, (title)::text));
+
+
+--
+-- Name: idx_movie_metadata_updated_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_movie_metadata_updated_at ON public.movie_metadata USING btree (updated_at DESC);
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict WCnNubl3mvDUZflIKGIWzCmPxSUFsjJ3Xr0ehx1kZfhs6ubHFlomTE2a5aJS4gM
+\unrestrict Ss0DmleGPscXYwpr0jCu7KJamoHeFDEeSJXvjNLqZkj4qR48LYUUdqxgFWFwzoU
 
 
 --
@@ -129,4 +185,6 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20250928210930'),
     ('20250928225044'),
     ('20250928233737'),
-    ('20251003040223');
+    ('20251003040223'),
+    ('20251009081500'),
+    ('20251012120000');

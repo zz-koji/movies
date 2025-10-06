@@ -21,7 +21,7 @@ export async function getMovies(params: GetMoviesRequest) {
 		searchParams.append('id', params.id.toString());
 	}
 
-	const response = await fetch(`${VITE_PUBLIC_API_BASE_URL}/movies?${searchParams}`);
+	const response = await fetch(`${VITE_PUBLIC_API_BASE_URL}/movies/omdb?${searchParams}`);
 
 	if (!response.ok) {
 		throw new Error(`Failed to fetch movies: ${response.statusText}`);

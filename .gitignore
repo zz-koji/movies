@@ -74,6 +74,7 @@ Thumbs.db
 .tmp/
 temp/
 tmp/
+server/uploads/
 
 # Cache
 .cache/
