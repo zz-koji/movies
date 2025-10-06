@@ -1,5 +1,4 @@
-import { z } from 'zod/v4'
-
+import { z } from 'zod/v4';
 
 export const uploadMovieDto = z.object({
   fieldname: z.string(),
@@ -10,4 +9,4 @@ export const uploadMovieDto = z.object({
   buffer: z.instanceof(Buffer), // If storing in memory
 });
 
-export type UploadMovieDto = z.infer<typeof uploadMovieDto>
+export type UploadMovieDto = z.infer<typeof uploadMovieDto>;

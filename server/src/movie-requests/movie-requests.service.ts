@@ -5,26 +5,35 @@ import { createMovieRequestSchema, CreateMovieRequestSchema } from './types';
 
 @Injectable()
 export class MovieRequestsService {
-	constructor(
-		@Inject('MOVIES_DATABASE')
-		private readonly db: Kysely<Database>
-	) { }
+  constructor(
+    @Inject('MOVIES_DATABASE')
+    private readonly db: Kysely<Database>,
+  ) {}
 
+  async get({ imdbIds }: { imdbIds: string[] }) {
+    return await this.db
+      .selectFrom('movie_requests')
+      .where('imdb_id', 'in', imdbIds)
+      .selectAll()
+      .execute();
+  }
 
-	async get({ imdbIds }: { imdbIds: string[] }) {
+  async create(data: CreateMovieRequestSchema, createdBy: string) {
+    const parsedValues = createMovieRequestSchema.parse({
+      ...data,
+      requested_by: createdBy,
+    });
 
-		return await this.db.selectFrom('movie_requests').where('imdb_id', 'in', imdbIds).selectAll().execute()
-	}
+    return await this.db
+      .insertInto('movie_requests')
+      .values(parsedValues)
+      .returningAll()
+      .executeTakeFirst();
+  }
 
-	async create(data: CreateMovieRequestSchema, createdBy: string) {
-		const parsedValues = createMovieRequestSchema.parse({ ...data, requested_by: createdBy })
+  async update() {}
 
-		return await this.db.insertInto('movie_requests').values(parsedValues).returningAll().executeTakeFirst()
-	}
+  async delete() {}
 
-	async update() { }
-
-	async delete() { }
-
-	async complete() { }
+  async complete() {}
 }

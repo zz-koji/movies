@@ -4,20 +4,20 @@ import type { CreateUserSchema, UpdateUserSchema } from './types';
 
 @Controller('users')
 export class UsersController {
-	constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
-	@Post()
-	async createUser(@Body() body: CreateUserSchema) {
-		return await this.usersService.createUser(body)
-	}
+  @Post()
+  async createUser(@Body() body: CreateUserSchema) {
+    return await this.usersService.createUser(body);
+  }
 
-	@Get()
-	async getUsers() {
-		return await this.usersService.getUsers()
-	}
+  @Get()
+  async getUsers() {
+    return await this.usersService.getUsers();
+  }
 
-	@Patch()
-	async updateUser(@Query('id') id: string, @Body() data: UpdateUserSchema) {
-		return await this.usersService.updateUser(id, data)
-	}
+  @Patch()
+  async updateUser(@Query('id') id: string, @Body() data: UpdateUserSchema) {
+    return await this.usersService.updateUser(id, data);
+  }
 }

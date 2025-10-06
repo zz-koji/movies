@@ -1,5 +1,5 @@
-import { Generated } from 'kysely'
-import { z } from 'zod/v4'
+import { Generated } from 'kysely';
+import { z } from 'zod/v4';
 
 export const omdbMovieSchema = z.object({
   Title: z.string(),
@@ -16,10 +16,12 @@ export const omdbMovieSchema = z.object({
   Country: z.string(),
   Awards: z.string(),
   Poster: z.string(),
-  Ratings: z.array(z.object({
-    Source: z.string(),
-    Value: z.string()
-  })),
+  Ratings: z.array(
+    z.object({
+      Source: z.string(),
+      Value: z.string(),
+    }),
+  ),
   Metascore: z.string(),
   imdbRating: z.string(),
   imdbVotes: z.string(),
@@ -29,10 +31,10 @@ export const omdbMovieSchema = z.object({
   BoxOffice: z.string().optional(),
   Production: z.string().optional(),
   Website: z.string().optional(),
-  Response: z.literal('True')
-})
+  Response: z.literal('True'),
+});
 
-export type OmdbMovie = z.infer<typeof omdbMovieSchema>
+export type OmdbMovie = z.infer<typeof omdbMovieSchema>;
 
 export const localMovieSchema = z.object({
   id: z.uuid(),
@@ -41,9 +43,30 @@ export const localMovieSchema = z.object({
   description: z.string(),
   movie_file_key: z.string(),
   subtitle_file_key: z.string().optional(),
-})
+});
 
+export type LocalMovie = z.infer<typeof localMovieSchema>;
+type GeneratedLocalMovieColumns = { id: Generated<string> };
+export type LocalMoviesTable = LocalMovie & GeneratedLocalMovieColumns;
 
-export type LocalMovie = z.infer<typeof localMovieSchema>
-type GeneratedLocalMovieColumns = { id: Generated<string>; }
-export type LocalMoviesTable = LocalMovie & GeneratedLocalMovieColumns
+export const movieMetadataSchema = z.object({
+  omdb_id: z.string(),
+  title: z.string(),
+  year: z.number().nullable(),
+  genre: z.string().nullable(),
+  director: z.string().nullable(),
+  actors: z.string().nullable(),
+  imdb_rating: z.number().nullable(),
+  runtime: z.number().nullable(),
+  data: z.unknown(),
+  created_at: z.date(),
+  updated_at: z.date(),
+});
+
+export type MovieMetadata = z.infer<typeof movieMetadataSchema>;
+type GeneratedMovieMetadataColumns = {
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+};
+export type MovieMetadataTable = Omit<MovieMetadata, keyof GeneratedMovieMetadataColumns> & GeneratedMovieMetadataColumns;
+export type MovieMetadataInsert = Omit<MovieMetadataTable, 'created_at' | 'updated_at'>;

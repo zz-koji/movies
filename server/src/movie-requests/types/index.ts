@@ -1,1 +1,1 @@
-export * from './movie-request.type'
+export * from './movie-request.type';

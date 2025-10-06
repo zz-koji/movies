@@ -1,1 +1,1 @@
-export * from './kysely.db'
+export * from './kysely.db';

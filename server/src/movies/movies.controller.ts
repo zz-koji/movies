@@ -1,6 +1,6 @@
 import { Controller, Get, Headers, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { MoviesService } from './movies.service';
-import type { GetMoviesDto, GetMovieDto } from './types'
+import type { GetMoviesDto, GetMovieDto, GetLocalMoviesDto } from './types'
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FileValidationPipe } from 'src/file-validation/file-validation.pipe';
 import type { Response } from 'express';
@@ -10,18 +10,23 @@ export class MoviesController {
   constructor(private readonly moviesService: MoviesService) { }
 
   @Get('local')
-  async localMovies() {
-    return await this.moviesService.getLocalMovies()
+  async localMovies(@Query() query: GetLocalMoviesDto) {
+    return await this.moviesService.getLocalMovies(query)
   }
 
   @Get()
   async getMovies(@Query() query: GetMoviesDto) {
-    return await this.moviesService.getMovies(query)
+    return this.moviesService.getMovies(query)
+  }
+
+  @Get('omdb')
+  async getOmdbMovies(@Query() query: GetMoviesDto) {
+    return this.moviesService.getMovies(query)
   }
 
   @Get('movie')
   async getMovie(@Query() param: GetMovieDto) {
-    return this.moviesService.getMovie(param)
+    return await this.moviesService.getMovie(param)
   }
 
   @Post('upload')

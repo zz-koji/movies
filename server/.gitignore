@@ -46,6 +46,10 @@ lerna-debug.log*
 .temp
 .tmp
 
+# Uploaded media (bind-mounted at runtime)
+uploads/*
+!uploads/.gitkeep
+
 # Runtime data
 pids
 *.pid
