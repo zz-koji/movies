@@ -1,5 +1,5 @@
-import { BadRequestException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { GetMovieDto, GetLocalMoviesDto, omdbMovieSchema, GetMoviesDto, LocalMovie } from './types'
+import { BadRequestException, HttpStatus, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { GetMovieDto, GetLocalMoviesDto, omdbMovieSchema, GetMoviesDto, LocalMovie, OmdbMovie } from './types'
 import { Client as MinioClient } from 'minio'
 import { Database } from 'src/database/types';
 import { Kysely } from 'kysely';
@@ -37,23 +37,25 @@ export class MoviesService {
   async getMovies(param: GetMoviesDto) {
     if (param.title) {
       const cached = await this.metadataService.getMoviesMetadataRows(param.title)
-      const cachedData = cached?.map(movie => { if (movie?.data) { return movie.data } })
+      const cachedData = cached?.map(movie => {
+        if (movie?.data) {
+          return movie.data
+        }
+      })
       if (Array.isArray(cachedData) && cached.length > 0) {
-        console.log('returning cached data')
         return cachedData
       }
     }
 
     const movies = await this.omdbService.getMovies({ title: param.title, page: param.page })
-
     return movies
   }
 
-  async getMovie(param: GetMovieDto) {
+  async getMovie(param: GetMovieDto): Promise<OmdbMovie> {
     if (param.id) {
       const cached = await this.metadataService.getMovieMetadataRow(param.id)
       if (cached?.data) {
-        return cached.data
+        return cached.data as OmdbMovie
       }
     }
 
@@ -62,66 +64,90 @@ export class MoviesService {
     if (this.omdbService.isSuccessfulOmdbRequest(movie)) {
       await this.metadataService.upsertMovieMetadata(movie)
     }
+    const parsedOmdbMovie = omdbMovieSchema.safeParse(movie)
 
-    return movie
+    if (!parsedOmdbMovie.success) {
+      throw new BadRequestException('Unable to load OMDb data for the uploaded movie.')
+    }
+
+
+    return parsedOmdbMovie.data
   }
 
+  private async convertMovieToFastStart(filePath: string) {
+    try {
+      const fastStartPath = await this.ffmpegService.convertToFastStart(filePath);
+      return fastStartPath
+    } catch (error) {
+      try {
+        await unlink(filePath)
+      } catch (error) {
+        console.error(`Error while unlinking file: \n ${error}`)
+      }
+      throw new BadRequestException(`Unable to prepare video for streaming: ${error instanceof Error ? error.message : error}`);
+    }
+  }
 
+  private async uploadToMinio(
+    filePath: string, fileName: string, mimetype: string
+  ) {
+
+    const fileStream = createReadStream(filePath);
+    const result = await this.minioClient.putObject(
+      this.bucket,
+      fileName,
+      fileStream,
+      undefined,
+      { 'Content-Type': mimetype },
+    );
+
+    return result
+  }
 
   async uploadMovie(movie: Express.Multer.File, omdbMovieId: string) {
+    let uploadCompleted = false;
+
     const fileName = movie.originalname.toLowerCase();
     const mimetype = movie.mimetype;
 
-    let processedPath = movie.path;
-    let fastStartPath: string | null = null;
-    let uploadCompleted = false;
-
     try {
-      fastStartPath = await this.ffmpegService.convertToFastStart(movie.path);
-      processedPath = fastStartPath;
-    } catch (error) {
-      await unlink(movie.path).catch(() => undefined);
-      throw new BadRequestException(`Unable to prepare video for streaming: ${error instanceof Error ? error.message : error}`);
-    }
-
-    try {
-      const fileStream = createReadStream(processedPath);
-      const result = await this.minioClient.putObject(
-        this.bucket,
-        fileName,
-        fileStream,
-        undefined,
-        { 'Content-Type': mimetype },
-      );
+      const fastStartPath = await this.convertMovieToFastStart(movie.path)
+      const processedMovieFile = await this.uploadToMinio(fastStartPath, fileName, mimetype)
       uploadCompleted = true;
 
-      const omdbResult = await this.getMovie({ id: omdbMovieId })
-      const parsedOmdbMovie = omdbMovieSchema.safeParse(omdbResult)
+      const omdbMovie = await this.getMovie({ id: omdbMovieId })
 
-      if (!parsedOmdbMovie.success) {
-        throw new BadRequestException('Unable to load OMDb data for the uploaded movie.')
-      }
-
-      const omdbMovie = parsedOmdbMovie.data
-      const recordUpload = await this.db.insertInto('local_movies').values({
+      const recordUpload = await this.insertMovieRecord({
         description: omdbMovie.Plot,
         movie_file_key: fileName,
         title: omdbMovie.Title,
-        omdb_id: omdbMovie.imdbID,
-      }).returningAll().executeTakeFirst();
+        omdb_id: omdbMovie.imdbID
+      })
 
-      return { upload: result, movie: recordUpload };
+      return { upload: processedMovieFile, movie: recordUpload };
     } catch (error) {
       if (uploadCompleted) {
-        await this.minioClient.removeObject(this.bucket, fileName).catch(() => undefined);
+        await this.minioClient.removeObject(this.bucket, fileName)
       }
       throw new BadRequestException(`Upload failed: ${error instanceof Error ? error.message : error}`);
+
     } finally {
-      await unlink(movie.path).catch(() => undefined);
-      if (fastStartPath) {
-        await unlink(fastStartPath).catch(() => undefined);
+      try {
+        await unlink(movie.path)
+      } catch (error) {
+        console.error(`Error unlinking movie: ${error}`)
       }
     }
+  }
+
+  private async insertMovieRecord(data: Pick<LocalMovie, 'description' | 'movie_file_key' | 'title' | 'omdb_id'>) {
+    const recordUpload = await this
+      .db.insertInto('local_movies')
+      .values(data)
+      .returningAll()
+      .executeTakeFirst();
+
+    return recordUpload
   }
 
   private async getMovieFileKey(omdbMovieId: string) {
@@ -348,21 +374,8 @@ export class MoviesService {
     }
   }
 
-  async getLocalMovies(query: GetLocalMoviesDto = {}) {
-    const { availabilityFilter, genreFilter, minRatingFilter, offset, pagination: { page, limit }, searchPattern, yearFilter } = MoviesService.resolveQuery(query)
-    if (availabilityFilter === false) {
-      return {
-        data: [],
-        pagination: {
-          page,
-          limit,
-          total: 0,
-          totalPages: 0,
-          hasNextPage: false,
-        },
-      }
-    }
-
+  private buildLocalMoviesQuery(query: GetLocalMoviesDto = {}) {
+    const { genreFilter, minRatingFilter, offset, pagination: { page, limit }, searchPattern, yearFilter } = MoviesService.resolveQuery(query)
     let moviesQuery = this.db
       .selectFrom('local_movies as lm')
       .leftJoin('movie_metadata as mm', 'mm.omdb_id', 'lm.omdb_id')
@@ -372,6 +385,8 @@ export class MoviesService {
     let totalQuery = this.db
       .selectFrom('local_movies as lm')
       .leftJoin('movie_metadata as mm', 'mm.omdb_id', 'lm.omdb_id')
+
+    let subTotalQuery = totalQuery
 
     if (searchPattern) {
       moviesQuery = moviesQuery.where((eb) =>
@@ -384,7 +399,7 @@ export class MoviesService {
         ]),
       )
 
-      totalQuery = totalQuery.where((eb) =>
+      subTotalQuery = totalQuery.where((eb) =>
         eb.or([
           eb('lm.title', 'ilike', searchPattern),
           eb('mm.title', 'ilike', searchPattern),
@@ -393,40 +408,51 @@ export class MoviesService {
           eb('mm.actors', 'ilike', searchPattern),
         ]),
       )
+
     }
 
     if (genreFilter) {
       const genrePattern = MoviesService.buildSearchPattern(genreFilter)
       moviesQuery = moviesQuery.where('mm.genre', 'ilike', genrePattern)
-      totalQuery = totalQuery.where('mm.genre', 'ilike', genrePattern)
+      subTotalQuery = subTotalQuery.where('mm.genre', 'ilike', genrePattern)
     }
 
     if (yearFilter !== null) {
       moviesQuery = moviesQuery.where('mm.year', '=', yearFilter)
-      totalQuery = totalQuery.where('mm.year', '=', yearFilter)
+      subTotalQuery = subTotalQuery.where('mm.year', '=', yearFilter)
     }
 
     if (minRatingFilter !== null) {
       moviesQuery = moviesQuery.where('mm.imdb_rating', '>=', minRatingFilter)
-      totalQuery = totalQuery.where('mm.imdb_rating', '>=', minRatingFilter)
+      subTotalQuery = subTotalQuery.where('mm.imdb_rating', '>=', minRatingFilter)
     }
 
     moviesQuery = moviesQuery.orderBy('lm.title', 'asc').offset(offset).limit(limit)
 
-    const [moviesWithMetadata, totalResult] = await Promise.all([
+    return { moviesQuery, totalQuery, subTotalQuery }
+  }
+
+  async getLocalMovies(query: GetLocalMoviesDto = {}) {
+    const { moviesQuery, totalQuery, subTotalQuery } = this.buildLocalMoviesQuery(query)
+
+    const [moviesWithMetadata, totalResult, subTotalResult] = await Promise.all([
       moviesQuery.execute(),
       totalQuery
-        .select(({ fn }) => fn.countAll<number>().as('count'))
+        .select(({ fn }) => fn.count<number>('id').as('count'))
         .executeTakeFirst(),
+      subTotalQuery
+        .select(({ fn }) => fn.count<number>('id').as('count'))
+        .executeTakeFirst()
     ])
 
-    const rawTotal = totalResult?.count ?? 0
-    const total =
-      typeof rawTotal === 'number'
-        ? rawTotal
-        : Number.parseInt(String(rawTotal), 10) || 0
+    const total = totalResult?.count ? Number(totalResult.count) : 0
+    const subTotal = subTotalResult?.count ? Number(subTotalResult.count) : 0
+
+    const limit = query?.limit ? Number(query.limit) : 0
+    const page = query?.page ? Number(query.page) : 0
 
     const totalPages = total > 0 ? Math.ceil(total / limit) : 0
+    const subTotalPages = subTotal > 0 ? Math.ceil(subTotal / limit) : 0
     const hasNextPage = page < totalPages
 
     const enrichedMovies: Array<LocalMovie & { metadata: unknown | null }> = []
@@ -445,6 +471,7 @@ export class MoviesService {
     return {
       data: enrichedMovies,
       pagination: {
+        subTotal,
         page,
         limit,
         total,

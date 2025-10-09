@@ -58,7 +58,7 @@ export const movieMetadataSchema = z.object({
   actors: z.string().nullable(),
   imdb_rating: z.number().nullable(),
   runtime: z.number().nullable(),
-  data: z.unknown(),
+  data: omdbMovieSchema,
   created_at: z.date(),
   updated_at: z.date(),
 });

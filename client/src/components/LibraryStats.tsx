@@ -2,62 +2,89 @@ import { Paper, Group, Stack, Text, ThemeIcon, SimpleGrid } from '@mantine/core'
 import { IconMovie, IconDeviceTv, IconStars, IconClock } from './icons';
 import type { Movie } from '../types';
 
+interface BackendStats {
+  total?: number;
+  available?: number;
+  upcoming?: number;
+  totalRuntime?: number; // minutes
+  averageRating?: number; // 0-10
+}
+
 interface LibraryStatsProps {
   movies: Movie[];
+  /** From pagination.subTotal (matching the current query/filter set) */
+  subTotal?: number;
+  /** From API response.stats (optional; falls back to client calc if absent/partial) */
+  stats?: BackendStats | null;
 }
 
 const calculateLibraryStats = (library: Movie[]) => {
   const total = library.length;
   const available = library.filter((movie) => movie.available).length;
   const upcoming = total - available;
-  const totalRuntime = library.reduce((acc, movie) => acc + movie.duration, 0);
+  const totalRuntime = library.reduce((acc, movie) => acc + (movie.duration ?? 0), 0);
   const averageRating = total
-    ? Number((library.reduce((acc, movie) => acc + movie.rating, 0) / total).toFixed(1))
+    ? Number(
+      (library.reduce((acc, movie) => acc + (movie.rating ?? 0), 0) / total).toFixed(1)
+    )
     : 0;
 
-  return {
-    total,
-    available,
-    upcoming,
-    totalRuntime,
-    averageRating
+  return { total, available, upcoming, totalRuntime, averageRating };
+};
+
+const formatRuntime = (minutes = 0) => {
+  const mins = Math.max(0, Math.floor(minutes));
+  const hours = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return `${hours}h ${rem.toString().padStart(2, '0')}m`;
+};
+
+export function LibraryStats({ movies, subTotal, stats }: LibraryStatsProps) {
+  // Fallback to client-side stats if API didn't send some/all fields
+
+  const local = calculateLibraryStats(movies);
+  const merged = {
+    total: stats?.total,
+    available: stats?.available,
+    upcoming: stats?.upcoming,
+    totalRuntime: stats?.totalRuntime,
+    averageRating:
+      typeof stats?.averageRating === 'number' ? Number(stats!.averageRating.toFixed(1)) : local.averageRating,
   };
-};
 
-const formatRuntime = (minutes: number) => {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h ${mins.toString().padStart(2, '0')}m`;
-};
-
-export function LibraryStats({ movies }: LibraryStatsProps) {
-  const stats = calculateLibraryStats(movies);
+  // If subTotal exists, show it as the primary "Total movies" count,
+  // and clarify the full-library total in the description.
+  const totalPrimary = typeof subTotal === 'number' ? subTotal : merged.total;
+  const totalDescription =
+    typeof subTotal === 'number' && subTotal !== merged.total
+      ? `of ${merged.total} total`
+      : 'In your library';
 
   const statItems = [
     {
       label: 'Total movies',
-      value: stats.total,
+      value: totalPrimary,
       icon: <IconMovie size={18} />,
-      description: 'In your library'
+      description: totalDescription,
     },
     {
       label: 'Available',
-      value: stats.available,
+      value: merged.available,
       icon: <IconDeviceTv size={18} />,
-      description: `${stats.upcoming} coming soon`
+      description: `${merged.upcoming} coming soon`,
     },
     {
       label: 'Avg rating',
-      value: stats.averageRating ? `${stats.averageRating}/10` : '—',
+      value: merged.averageRating ? `${merged.averageRating}/10` : '—',
       icon: <IconStars size={18} />,
-      description: 'IMDb ratings'
+      description: 'IMDb ratings',
     },
     {
       label: 'Total runtime',
-      value: stats.totalRuntime ? formatRuntime(stats.totalRuntime) : '—',
+      value: merged.totalRuntime ? formatRuntime(merged.totalRuntime) : '—',
       icon: <IconClock size={18} />,
-      description: 'Hours of content'
-    }
+      description: 'Hours of content',
+    },
   ];
 
   return (
@@ -85,3 +112,4 @@ export function LibraryStats({ movies }: LibraryStatsProps) {
     </SimpleGrid>
   );
 }
+

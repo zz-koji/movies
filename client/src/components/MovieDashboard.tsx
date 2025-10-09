@@ -71,6 +71,8 @@ export function MovieDashboard() {
     hasMoreLocalMovies,
     isLoadingMoreLocalMovies,
     isSearching,
+    stats,
+    subTotal
   } = useMovieLibrary({
     filters,
     debouncedQuery,
@@ -160,7 +162,7 @@ export function MovieDashboard() {
           onRequestMovie={openRequestModal}
         />
 
-        <LibraryStats movies={movies} />
+        <LibraryStats movies={movies} subTotal={subTotal} stats={stats} />
 
         <Paper withBorder radius="lg" p={{ base: 'lg', md: 'xl' }}>
           <Stack gap="lg">
