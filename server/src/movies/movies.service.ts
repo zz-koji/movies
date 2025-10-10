@@ -386,6 +386,10 @@ export class MoviesService {
       .selectFrom('local_movies as lm')
       .leftJoin('movie_metadata as mm', 'mm.omdb_id', 'lm.omdb_id')
 
+    let comingSoonQuery = this.db
+      .selectFrom('movie_requests as mr')
+      .leftJoin('movie_metadata as mm', 'mr.omdb_id', 'mm.omdb_id')
+
     let subTotalQuery = totalQuery
 
     if (searchPattern) {
@@ -408,6 +412,15 @@ export class MoviesService {
           eb('mm.actors', 'ilike', searchPattern),
         ]),
       )
+      comingSoonQuery = comingSoonQuery.where((eb) =>
+        eb.or([
+          eb('mm.title', 'ilike', searchPattern),
+          eb('mm.genre', 'ilike', searchPattern),
+          eb('mm.director', 'ilike', searchPattern),
+          eb('mm.actors', 'ilike', searchPattern),
+        ]),
+
+      )
 
     }
 
@@ -415,44 +428,55 @@ export class MoviesService {
       const genrePattern = MoviesService.buildSearchPattern(genreFilter)
       moviesQuery = moviesQuery.where('mm.genre', 'ilike', genrePattern)
       subTotalQuery = subTotalQuery.where('mm.genre', 'ilike', genrePattern)
+      comingSoonQuery = comingSoonQuery.where('mm.genre', 'ilike', genrePattern)
     }
 
     if (yearFilter !== null) {
       moviesQuery = moviesQuery.where('mm.year', '=', yearFilter)
       subTotalQuery = subTotalQuery.where('mm.year', '=', yearFilter)
+      comingSoonQuery = comingSoonQuery.where('mm.year', 'ilike', yearFilter)
     }
 
     if (minRatingFilter !== null) {
       moviesQuery = moviesQuery.where('mm.imdb_rating', '>=', minRatingFilter)
       subTotalQuery = subTotalQuery.where('mm.imdb_rating', '>=', minRatingFilter)
+      comingSoonQuery = comingSoonQuery.where('mm.imdb_rating', '>=', minRatingFilter)
     }
 
     moviesQuery = moviesQuery.orderBy('lm.title', 'asc').offset(offset).limit(limit)
 
-    return { moviesQuery, totalQuery, subTotalQuery }
+    return { moviesQuery, totalQuery, subTotalQuery, comingSoonQuery }
   }
 
   async getLocalMovies(query: GetLocalMoviesDto = {}) {
-    const { moviesQuery, totalQuery, subTotalQuery } = this.buildLocalMoviesQuery(query)
+    const { moviesQuery, totalQuery, subTotalQuery, comingSoonQuery } = this.buildLocalMoviesQuery(query)
 
-    const [moviesWithMetadata, totalResult, subTotalResult] = await Promise.all([
+
+
+    const [moviesWithMetadata, totalResult, subTotalResult, comingSoonResult] = await Promise.all([
       moviesQuery.execute(),
       totalQuery
         .select(({ fn }) => fn.count<number>('id').as('count'))
         .executeTakeFirst(),
       subTotalQuery
         .select(({ fn }) => fn.count<number>('id').as('count'))
+        .executeTakeFirst(),
+      comingSoonQuery
+        .select(({ fn }) => fn.count<number>('id').as('count')).where('date_completed', 'is not', null)
         .executeTakeFirst()
+
     ])
+
+
 
     const total = totalResult?.count ? Number(totalResult.count) : 0
     const subTotal = subTotalResult?.count ? Number(subTotalResult.count) : 0
+    const comingSoon = comingSoonResult?.count ? Number(comingSoonResult.count) : 0
 
     const limit = query?.limit ? Number(query.limit) : 0
     const page = query?.page ? Number(query.page) : 0
 
     const totalPages = total > 0 ? Math.ceil(total / limit) : 0
-    const subTotalPages = subTotal > 0 ? Math.ceil(subTotal / limit) : 0
     const hasNextPage = page < totalPages
 
     const enrichedMovies: Array<LocalMovie & { metadata: unknown | null }> = []
@@ -468,10 +492,12 @@ export class MoviesService {
       enrichedMovies.push({ ...localMovie, metadata })
     }
 
+
     return {
       data: enrichedMovies,
       pagination: {
         subTotal,
+        comingSoon,
         page,
         limit,
         total,

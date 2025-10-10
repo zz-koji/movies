@@ -8,12 +8,12 @@ export class MovieRequestsService {
   constructor(
     @Inject('MOVIES_DATABASE')
     private readonly db: Kysely<Database>,
-  ) {}
+  ) { }
 
   async get({ imdbIds }: { imdbIds: string[] }) {
     return await this.db
       .selectFrom('movie_requests')
-      .where('imdb_id', 'in', imdbIds)
+      .where('omdb_id', 'in', imdbIds)
       .selectAll()
       .execute();
   }
@@ -31,9 +31,9 @@ export class MovieRequestsService {
       .executeTakeFirst();
   }
 
-  async update() {}
+  async update() { }
 
-  async delete() {}
+  async delete() { }
 
-  async complete() {}
+  async complete() { }
 }

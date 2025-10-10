@@ -4,8 +4,9 @@ import type { Movie } from '../types';
 
 interface BackendStats {
   total?: number;
+  subTotal: number
+  comingSoon?: number;
   available?: number;
-  upcoming?: number;
   totalRuntime?: number; // minutes
   averageRating?: number; // 0-10
 }
@@ -13,7 +14,6 @@ interface BackendStats {
 interface LibraryStatsProps {
   movies: Movie[];
   /** From pagination.subTotal (matching the current query/filter set) */
-  subTotal?: number;
   /** From API response.stats (optional; falls back to client calc if absent/partial) */
   stats?: BackendStats | null;
 }
@@ -21,7 +21,6 @@ interface LibraryStatsProps {
 const calculateLibraryStats = (library: Movie[]) => {
   const total = library.length;
   const available = library.filter((movie) => movie.available).length;
-  const upcoming = total - available;
   const totalRuntime = library.reduce((acc, movie) => acc + (movie.duration ?? 0), 0);
   const averageRating = total
     ? Number(
@@ -29,7 +28,7 @@ const calculateLibraryStats = (library: Movie[]) => {
     )
     : 0;
 
-  return { total, available, upcoming, totalRuntime, averageRating };
+  return { total, available, totalRuntime, averageRating };
 };
 
 const formatRuntime = (minutes = 0) => {
@@ -39,14 +38,15 @@ const formatRuntime = (minutes = 0) => {
   return `${hours}h ${rem.toString().padStart(2, '0')}m`;
 };
 
-export function LibraryStats({ movies, subTotal, stats }: LibraryStatsProps) {
+export function LibraryStats({ movies, stats }: LibraryStatsProps) {
   // Fallback to client-side stats if API didn't send some/all fields
+
 
   const local = calculateLibraryStats(movies);
   const merged = {
     total: stats?.total,
-    available: stats?.available,
-    upcoming: stats?.upcoming,
+    available: stats?.total,
+    comingSoon: stats?.comingSoon,
     totalRuntime: stats?.totalRuntime,
     averageRating:
       typeof stats?.averageRating === 'number' ? Number(stats!.averageRating.toFixed(1)) : local.averageRating,
@@ -54,6 +54,8 @@ export function LibraryStats({ movies, subTotal, stats }: LibraryStatsProps) {
 
   // If subTotal exists, show it as the primary "Total movies" count,
   // and clarify the full-library total in the description.
+
+  const subTotal = movies.length
   const totalPrimary = typeof subTotal === 'number' ? subTotal : merged.total;
   const totalDescription =
     typeof subTotal === 'number' && subTotal !== merged.total
@@ -71,7 +73,7 @@ export function LibraryStats({ movies, subTotal, stats }: LibraryStatsProps) {
       label: 'Available',
       value: merged.available,
       icon: <IconDeviceTv size={18} />,
-      description: `${merged.upcoming} coming soon`,
+      description: `${merged.comingSoon} coming soon`,
     },
     {
       label: 'Avg rating',

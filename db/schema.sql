@@ -1,4 +1,4 @@
-\restrict Ss0DmleGPscXYwpr0jCu7KJamoHeFDEeSJXvjNLqZkj4qR48LYUUdqxgFWFwzoU
+\restrict 9eOUDojsENxk1rDXv67APLIVzGpY2o9AYKHL1yXPoM0iiLNVUmKBAcbVOOjb8R8
 
 -- Dumped from database version 17.6 (Debian 17.6-2.pgdg13+1)
 -- Dumped by pg_dump version 17.6
@@ -67,12 +67,12 @@ CREATE TABLE public.movie_metadata (
 
 
 --
--- Name: movie_request; Type: TABLE; Schema: public; Owner: -
+-- Name: movie_requests; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.movie_request (
+CREATE TABLE public.movie_requests (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    imdb_id character varying(20) NOT NULL,
+    omdb_id character varying(20) NOT NULL,
     date_requested date DEFAULT now(),
     date_completed date,
     requested_by uuid NOT NULL
@@ -117,10 +117,10 @@ ALTER TABLE ONLY public.movie_metadata
 
 
 --
--- Name: movie_request movie_request_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: movie_requests movie_request_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.movie_request
+ALTER TABLE ONLY public.movie_requests
     ADD CONSTRAINT movie_request_pkey PRIMARY KEY (id);
 
 
@@ -173,7 +173,7 @@ CREATE INDEX idx_movie_metadata_updated_at ON public.movie_metadata USING btree 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Ss0DmleGPscXYwpr0jCu7KJamoHeFDEeSJXvjNLqZkj4qR48LYUUdqxgFWFwzoU
+\unrestrict 9eOUDojsENxk1rDXv67APLIVzGpY2o9AYKHL1yXPoM0iiLNVUmKBAcbVOOjb8R8
 
 
 --
@@ -187,4 +187,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20250928233737'),
     ('20251003040223'),
     ('20251009081500'),
+    ('20251009223803'),
     ('20251012120000');

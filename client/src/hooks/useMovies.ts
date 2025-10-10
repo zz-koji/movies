@@ -47,8 +47,6 @@ export function useMovieLibrary({
   hasMoreLocalMovies: boolean;
   isLoadingMoreLocalMovies: boolean;
   isSearching: boolean;
-  /** NEW: subtotal for the current page/window (from pagination.subTotal) */
-  subTotal: number;
   /** NEW: aggregated stats returned by the API (shape depends on backend) */
   stats: LibraryStats | null;
 } {
@@ -61,14 +59,12 @@ export function useMovieLibrary({
     totalPages: number;
     hasNextPage: boolean;
     /** NEW: per-API subtotal for current slice */
-    subTotal?: number;
   }>({
     page: 0,
     limit: LOCAL_LIBRARY_PAGE_SIZE,
     total: 0,
     totalPages: 0,
     hasNextPage: false,
-    subTotal: 0,
   });
   const [localError, setLocalError] = useState<Error | null>(null);
   const [isLoadingLocalLibrary, setIsLoadingLocalLibrary] = useState(false);
@@ -131,24 +127,15 @@ export function useMovieLibrary({
         if (typeof effectiveFilters?.rating === 'number') requestOptions.rating = effectiveFilters.rating;
         if (typeof effectiveFilters?.available === 'boolean') requestOptions.available = effectiveFilters.available;
 
-        // Accept both old and new response shapes
-        const raw = await getMovieLibrary(requestOptions) as
-          | { movies: Movie[]; pagination: typeof localPagination; stats?: LibraryStats }
-          | { data: Movie[]; pagination: typeof localPagination & { subTotal?: number }; stats?: LibraryStats };
+        const raw = await getMovieLibrary(requestOptions)
 
-        const pageMovies: Movie[] = (raw as any).movies ?? (raw as any).data ?? [];
-        const pagination = (raw as any).pagination ?? {
-          page,
-          limit: LOCAL_LIBRARY_PAGE_SIZE,
-          total: pageMovies.length,
-          totalPages: 1,
-          hasNextPage: false,
-          subTotal: pageMovies.length,
-        };
-        const stats: LibraryStats | undefined = (raw as any).stats;
 
+
+        const pageMovies: Movie[] = raw.movies
+        const pagination = raw.pagination
+        const stats: LibraryStats = raw.pagination;
         setLocalPagination(pagination);
-        setLocalStats(stats ?? null); // NEW
+        setLocalStats(stats); // NEW
         setLocalError(null);
         setLocalLibrary((prev) => (append ? [...prev, ...pageMovies] : pageMovies));
       } catch (error) {
@@ -165,7 +152,6 @@ export function useMovieLibrary({
             total: 0,
             totalPages: 0,
             hasNextPage: false,
-            subTotal: 0,
           });
           setActiveQuery(undefined);
           activeFiltersRef.current = {};
@@ -213,7 +199,6 @@ export function useMovieLibrary({
     hasMoreLocalMovies: localPagination.hasNextPage,
     isLoadingMoreLocalMovies,
     isSearching: Boolean(activeQuery && activeQuery.length >= 2),
-    subTotal: localPagination.subTotal ?? 0, // NEW
     stats: localStats, // NEW
   };
 }

@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { whoami } from '../api/auth/login'
+import { login, whoami } from '../api/auth/login'
+import type { LoginCredentials } from '../types'
+import { useDisclosure } from '@mantine/hooks'
 
 interface User {
   id: number
@@ -47,9 +49,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAuth() {
+  const [loginModalOpened, { open: openLoginModal, close: closeLoginModal }] = useDisclosure(false);
+
+
   const context = useContext(AuthContext)
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider')
   }
-  return context
+
+
+  const handleLogin = async (credentials: LoginCredentials) => {
+    const loginResponse = await login(credentials);
+    const data = await loginResponse.json();
+
+    if (data.user) {
+      context.setUser(data.user);
+      closeLoginModal();
+      return;
+    }
+
+    context.setUser(null);
+  };
+
+
+  return { handleLogin, openLoginModal, loginModalOpened, closeLoginModal, context }
 }

@@ -11,54 +11,40 @@ import {
   Text,
   Title
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
 import { IconBellPlus } from './icons';
-import type { LoginCredentials, Movie, MovieRequest, SearchFilters } from '../types';
+import type { Movie } from '../types';
 import { MovieCard } from './MovieCard';
 import { MovieRequestForm } from './MovieRequestForm';
 import { LibraryStats } from './LibraryStats';
 import { MovieFilters } from './MovieFilters';
 import { RequestQueue } from './RequestQueue';
 import { MovieWatchPage } from './MovieWatchPage';
-import { addMovieRequest, type ExtendedMovieRequest } from '../api/requests';
 import { useMovieLibrary } from '../hooks/useMovies';
 import { useDebounce } from 'use-debounce';
 import { LoginModal } from './auth/LoginModal';
-import { login } from '../api/auth/login';
 import { useAuth } from '../context/AuthContext';
 import { IconInfoCircle, IconLogin } from '@tabler/icons-react';
 import { MovieUploadSection } from './MovieUploadSection';
 import { deleteMovieFromLibrary } from '../api/movies';
+import { useMovieRequests } from '../hooks/useMovieRequest';
+import { useMovieFilters } from '../hooks/useMovieFilters';
 
-const INITIAL_FILTERS: SearchFilters = {
-  query: '',
-  genre: undefined,
-  year: undefined,
-  rating: undefined,
-  available: undefined,
-};
+
 
 export function MovieDashboard() {
-  const [requests, setRequests] = useState<ExtendedMovieRequest[]>([]);
-  const [filters, setFilters] = useState<SearchFilters>(INITIAL_FILTERS);
-  const [sortBy, setSortBy] = useState<'title' | 'rating' | 'year'>('title');
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [deletingMovieId, setDeletingMovieId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const loadingRequests = false;
 
-  const availability = useMemo<'all' | 'available' | 'upcoming'>(() => {
-    if (filters.available === undefined) {
-      return 'all';
-    }
-    return filters.available ? 'available' : 'upcoming';
-  }, [filters.available]);
+  const { movieRequests, handleMovieRequest, movieRequestModal: { closeMovieRequestModal, movieRequestModalOpened, openMovieRequestModal } } = useMovieRequests();
+  const handleWatchMovie = (movie: Movie) => {
+    setSelectedMovie(movie);
+  };
 
-  const { user, setUser } = useAuth();
+  const { availability, filters, sortBy, setSortBy, handlers } = useMovieFilters()
 
-  const [requestModalOpened, { open: openRequestModal, close: closeRequestModal }] =
-    useDisclosure(false);
-  const [loginModalOpened, { open: openLoginModal, close: closeLoginModal }] = useDisclosure(false);
+  const { handleLogin, openLoginModal, loginModalOpened, closeLoginModal, context } = useAuth();
 
   const [debouncedQuery] = useDebounce(filters.query, 500);
 
@@ -72,34 +58,11 @@ export function MovieDashboard() {
     isLoadingMoreLocalMovies,
     isSearching,
     stats,
-    subTotal
   } = useMovieLibrary({
     filters,
     debouncedQuery,
     sortBy,
   });
-
-  const handleMovieRequest = async (request: MovieRequest) => {
-    const newRequest = await addMovieRequest(request);
-    setRequests((prev) => [newRequest, ...prev]);
-  };
-
-  const handleLogin = async (credentials: LoginCredentials) => {
-    const loginResponse = await login(credentials);
-    const data = await loginResponse.json();
-
-    if (data.user) {
-      setUser(data.user);
-      closeLoginModal();
-      return;
-    }
-
-    setUser(null);
-  };
-
-  const handleWatchMovie = (movie: Movie) => {
-    setSelectedMovie(movie);
-  };
 
   const handleBackToLibrary = () => {
     setSelectedMovie(null);
@@ -122,24 +85,6 @@ export function MovieDashboard() {
     }
   };
 
-  const handleFiltersChange = (nextFilters: SearchFilters) => {
-    setFilters({
-      ...nextFilters,
-      query: nextFilters.query ?? '',
-    });
-  };
-
-  const handleAvailabilityChange = (value: 'all' | 'available' | 'upcoming') => {
-    handleFiltersChange({
-      ...filters,
-      available: value === 'all' ? undefined : value === 'available',
-    });
-  };
-
-  const handleClearFilters = () => {
-    setFilters({ ...INITIAL_FILTERS });
-  };
-
   if (selectedMovie) {
     return (
       <MovieWatchPage
@@ -157,12 +102,12 @@ export function MovieDashboard() {
     <Container size="lg" py="xl">
       <Stack gap="xl">
         <DashboardHeader
-          isAuthenticated={Boolean(user)}
+          isAuthenticated={Boolean(context.user)}
           onLogin={openLoginModal}
-          onRequestMovie={openRequestModal}
+          onRequestMovie={openMovieRequestModal}
         />
 
-        <LibraryStats movies={movies} subTotal={subTotal} stats={stats} />
+        <LibraryStats movies={movies} stats={stats} />
 
         <Paper withBorder radius="lg" p={{ base: 'lg', md: 'xl' }}>
           <Stack gap="lg">
@@ -173,12 +118,12 @@ export function MovieDashboard() {
 
             <MovieFilters
               filters={filters}
-              onFiltersChange={handleFiltersChange}
+              onFiltersChange={handlers.handleFiltersChange}
               availability={availability}
-              onAvailabilityChange={handleAvailabilityChange}
+              onAvailabilityChange={handlers.handleAvailabilityChange}
               sortBy={sortBy}
               onSortChange={(value) => setSortBy(value)}
-              onClearFilters={handleClearFilters}
+              onClearFilters={handlers.handleClearFilters}
             />
 
             <Text size="sm" c="dimmed">
@@ -237,13 +182,13 @@ export function MovieDashboard() {
 
         <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xl">
           <RequestQueue
-            requests={requests}
+            requests={movieRequests}
             loading={loadingRequests}
-            onOpenRequestModal={openRequestModal}
+            onOpenRequestModal={openMovieRequestModal}
           />
 
           <MovieUploadSection
-            isAuthenticated={Boolean(user)}
+            isAuthenticated={Boolean(context.user)}
             onRequestLogin={openLoginModal}
             onUploadSuccess={reloadLocalLibrary}
           />
@@ -257,8 +202,8 @@ export function MovieDashboard() {
       />
 
       <MovieRequestForm
-        opened={requestModalOpened}
-        onClose={closeRequestModal}
+        opened={movieRequestModalOpened}
+        onClose={closeMovieRequestModal}
         onSubmit={handleMovieRequest}
       />
     </Container>

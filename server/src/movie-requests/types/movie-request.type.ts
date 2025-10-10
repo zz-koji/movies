@@ -3,7 +3,7 @@ import { z } from 'zod/v4';
 
 export const movieRequestSchema = z.object({
   id: z.uuid(),
-  imdb_id: z.string().max(20),
+  omdb_id: z.string().max(20),
   date_requested: z.date().default(new Date()),
   date_completed: z.date().optional().nullable(),
   requested_by: z.uuid(),
