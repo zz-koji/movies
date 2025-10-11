@@ -1,5 +1,6 @@
 export type GetMoviesDto = {
-	title: string;
-	page: number
-	id?: number
+  title: string;
+  page: number
+  id?: number
+  sortBy?: 'rating' | 'title' | 'year'
 }

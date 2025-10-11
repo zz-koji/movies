@@ -1,4 +1,4 @@
-import { BadRequestException, HttpStatus, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { GetMovieDto, GetLocalMoviesDto, omdbMovieSchema, GetMoviesDto, LocalMovie, OmdbMovie } from './types'
 import { Client as MinioClient } from 'minio'
 import { Database } from 'src/database/types';
@@ -24,7 +24,7 @@ interface RangeBounds {
 
 @Injectable()
 export class MoviesService {
-  private static readonly STREAM_CHUNK_SIZE = 1_000_000; // ~1MB default range window
+  private static readonly STREAM_CHUNK_SIZE = 200_000_000; // ~1MB default range window
   private bucket: string = 'movies';
   constructor(
     @Inject('MINIO_CLIENT') private readonly minioClient: MinioClient,
@@ -42,6 +42,7 @@ export class MoviesService {
           return movie.data
         }
       })
+
       if (Array.isArray(cachedData) && cached.length > 0) {
         return cachedData
       }
@@ -72,6 +73,42 @@ export class MoviesService {
 
 
     return parsedOmdbMovie.data
+  }
+
+  private static sortMovie(movies: (LocalMovie & { metadata: OmdbMovie | null })[], sortBy: 'title' | 'year' | 'rating' = 'title') {
+    if (sortBy === 'rating') {
+      return movies.sort((a, b) => {
+        if (!a?.metadata?.imdbRating || !b?.metadata?.imdbRating) return 0
+        if (a?.metadata.imdbRating > b?.metadata.imdbRating) return 1;
+        if (a?.metadata.imdbRating < b?.metadata.imdbRating) return -1;
+        return 0
+      })
+    }
+
+    if (sortBy === 'title') {
+      return movies.sort((a, b) => {
+        if (!a?.metadata?.Title || !b?.metadata?.Title) return 0;
+        const aTitle = a.metadata.Title.toLowerCase()
+        const bTitle = b?.metadata.Title.toLowerCase()
+
+        if (aTitle > bTitle) return 1;
+        if (aTitle < bTitle) return -1;
+
+        return 0
+      })
+    }
+
+    if (sortBy === 'year') {
+      return movies.sort((a, b) => {
+        if (!a?.metadata?.Year || !b?.metadata?.Year) return 0;
+        if (a.metadata.Year > b.metadata.Year) return 1;
+        if (a.metadata.Year < b.metadata.Year) return -1;
+        return 0;
+      })
+    }
+
+    return movies;
+
   }
 
   private async convertMovieToFastStart(filePath: string) {
@@ -375,7 +412,7 @@ export class MoviesService {
   }
 
   private buildLocalMoviesQuery(query: GetLocalMoviesDto = {}) {
-    const { genreFilter, minRatingFilter, offset, pagination: { page, limit }, searchPattern, yearFilter } = MoviesService.resolveQuery(query)
+    const { genreFilter, minRatingFilter, offset, pagination: { limit }, searchPattern, yearFilter } = MoviesService.resolveQuery(query)
     let moviesQuery = this.db
       .selectFrom('local_movies as lm')
       .leftJoin('movie_metadata as mm', 'mm.omdb_id', 'lm.omdb_id')
@@ -463,7 +500,6 @@ export class MoviesService {
       comingSoonQuery
         .select(({ fn }) => fn.count<number>('id').as('count')).where('date_completed', 'is not', null)
         .executeTakeFirst()
-
     ])
 
 
@@ -479,11 +515,11 @@ export class MoviesService {
     const totalPages = total > 0 ? Math.ceil(total / limit) : 0
     const hasNextPage = page < totalPages
 
-    const enrichedMovies: Array<LocalMovie & { metadata: unknown | null }> = []
+    const enrichedMovies: Array<LocalMovie & { metadata: OmdbMovie | null }> = []
 
     for (const movie of moviesWithMetadata) {
       const { cached_metadata, ...localMovie } = movie
-      let metadata: unknown | null = cached_metadata ?? null
+      let metadata: OmdbMovie | null = cached_metadata
 
       if (!metadata && localMovie.omdb_id) {
         metadata = await this.getMovie({ id: localMovie.omdb_id })
@@ -492,10 +528,8 @@ export class MoviesService {
       enrichedMovies.push({ ...localMovie, metadata })
     }
 
-
-
     return {
-      data: enrichedMovies,
+      data: MoviesService.sortMovie(enrichedMovies, query.sortBy),
       pagination: {
         subTotal,
         comingSoon,
