@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { SearchFilters } from "../types";
+import { useDebounce } from "use-debounce";
 
 export function useMovieFilters() {
 
@@ -39,7 +40,8 @@ export function useMovieFilters() {
     setFilters({ ...INITIAL_FILTERS });
   };
 
+  const [debouncedQuery] = useDebounce(filters.query, 500);
 
 
-  return { filters, setFilters, sortBy, setSortBy, availability, handlers: { handleFiltersChange, handleAvailabilityChange, handleClearFilters } }
+  return { filters, setFilters, sortBy, setSortBy, availability, debouncedQuery, handlers: { handleFiltersChange, handleAvailabilityChange, handleClearFilters } }
 }

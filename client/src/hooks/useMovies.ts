@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getMovies, getMovie, type GetMoviesRequest, type GetMovieRequest } from '../api/server';
 import type { Movie, SearchFilters } from '../types';
-import { getMovieLibrary, type MovieLibraryResult } from '../api/movies';
+import { getMovieLibrary, type MovieLibraryPagination } from '../api/movies';
 
 export function useMovies(params: GetMoviesRequest, enabled: boolean = true) {
   return useQuery({
@@ -28,9 +28,7 @@ interface UseMovieLibraryParams {
   sortBy: 'title' | 'rating' | 'year';
 }
 
-// Infer a Stats type if your MovieLibraryResult defines one; otherwise fall back to a generic record
-type InferStats<T> = T extends { stats: infer S } ? S : Record<string, unknown>;
-type LibraryStats = InferStats<MovieLibraryResult>;
+export type LibraryStats = MovieLibraryPagination | null;
 
 const LOCAL_LIBRARY_PAGE_SIZE = 9;
 
@@ -47,8 +45,7 @@ export function useMovieLibrary({
   hasMoreLocalMovies: boolean;
   isLoadingMoreLocalMovies: boolean;
   isSearching: boolean;
-  /** NEW: aggregated stats returned by the API (shape depends on backend) */
-  stats: LibraryStats | null;
+  stats: LibraryStats;
 } {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [localLibrary, setLocalLibrary] = useState<Movie[]>([]);
@@ -58,7 +55,6 @@ export function useMovieLibrary({
     total: number;
     totalPages: number;
     hasNextPage: boolean;
-    /** NEW: per-API subtotal for current slice */
   }>({
     page: 0,
     limit: LOCAL_LIBRARY_PAGE_SIZE,

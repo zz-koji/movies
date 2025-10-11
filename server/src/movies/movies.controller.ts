@@ -1,4 +1,4 @@
-import { Controller, Get, Headers, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Delete, Get, Headers, Param, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { MoviesService } from './movies.service';
 import type { GetMoviesDto, GetMovieDto, GetLocalMoviesDto } from './types'
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -50,5 +50,10 @@ export class MoviesController {
     res.flushHeaders?.()
     stream.on('error', (error) => res.destroy(error))
     stream.pipe(res)
+  }
+
+  @Delete('local/:imdbId')
+  async deleteMovie(@Param('imdbId') imdbId: string) {
+    return await this.moviesService.deleteMovie(imdbId)
   }
 }

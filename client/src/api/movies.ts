@@ -16,6 +16,7 @@ export type MovieLibraryPagination = {
   subTotal?: number;
   comingSoon?: number;
   total: number;
+  totalRuntime?: number;
   totalPages: number;
   hasNextPage: boolean;
 };
@@ -138,6 +139,7 @@ async function requestLocalMovies(
   const total = parseNumeric(paginationSource?.total, records.length);
   const subTotal = paginationSource?.subTotal ? paginationSource.subTotal : 0
   const comingSoon = paginationSource?.comingSoon ? paginationSource?.comingSoon : 0
+  const totalRuntime = paginationSource?.totalRuntime ? paginationSource?.totalRuntime : 0
   const page = parseNumeric(paginationSource?.page, fallback.page);
   const limit = parseNumeric(paginationSource?.limit, fallback.limit);
   const totalPages = total > 0 && limit > 0 ? Math.ceil(total / limit) : 0;
@@ -152,6 +154,7 @@ async function requestLocalMovies(
       page,
       limit,
       total,
+      totalRuntime,
       subTotal,
       comingSoon,
       totalPages,

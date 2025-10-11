@@ -15,7 +15,7 @@ export function useMovieRequests() {
     useDisclosure(false);
 
 
-  return { handleMovieRequest, movieRequests, movieRequestModal: { movieRequestModalOpened, openMovieRequestModal, closeMovieRequestModal } }
+  return { handleMovieRequest, movieRequests, modal: { movieRequestModalOpened, openMovieRequestModal, closeMovieRequestModal } }
 }
 
 

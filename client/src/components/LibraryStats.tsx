@@ -1,34 +1,23 @@
 import { Paper, Group, Stack, Text, ThemeIcon, SimpleGrid } from '@mantine/core';
 import { IconMovie, IconDeviceTv, IconStars, IconClock } from './icons';
 import type { Movie } from '../types';
-
-interface BackendStats {
-  total?: number;
-  subTotal: number
-  comingSoon?: number;
-  available?: number;
-  totalRuntime?: number; // minutes
-  averageRating?: number; // 0-10
-}
+import type { LibraryStats } from '../hooks/useMovies';
 
 interface LibraryStatsProps {
   movies: Movie[];
-  /** From pagination.subTotal (matching the current query/filter set) */
-  /** From API response.stats (optional; falls back to client calc if absent/partial) */
-  stats?: BackendStats | null;
+  stats?: LibraryStats | null;
 }
 
 const calculateLibraryStats = (library: Movie[]) => {
   const total = library.length;
   const available = library.filter((movie) => movie.available).length;
-  const totalRuntime = library.reduce((acc, movie) => acc + (movie.duration ?? 0), 0);
   const averageRating = total
     ? Number(
       (library.reduce((acc, movie) => acc + (movie.rating ?? 0), 0) / total).toFixed(1)
     )
     : 0;
 
-  return { total, available, totalRuntime, averageRating };
+  return { total, available, averageRating };
 };
 
 const formatRuntime = (minutes = 0) => {
@@ -39,9 +28,6 @@ const formatRuntime = (minutes = 0) => {
 };
 
 export function LibraryStats({ movies, stats }: LibraryStatsProps) {
-  // Fallback to client-side stats if API didn't send some/all fields
-
-
   const local = calculateLibraryStats(movies);
   const merged = {
     total: stats?.total,
@@ -51,9 +37,6 @@ export function LibraryStats({ movies, stats }: LibraryStatsProps) {
     averageRating:
       typeof stats?.averageRating === 'number' ? Number(stats!.averageRating.toFixed(1)) : local.averageRating,
   };
-
-  // If subTotal exists, show it as the primary "Total movies" count,
-  // and clarify the full-library total in the description.
 
   const subTotal = movies.length
   const totalPrimary = typeof subTotal === 'number' ? subTotal : merged.total;

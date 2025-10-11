@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   Alert,
   Button,
@@ -20,7 +20,6 @@ import { MovieFilters } from './MovieFilters';
 import { RequestQueue } from './RequestQueue';
 import { MovieWatchPage } from './MovieWatchPage';
 import { useMovieLibrary } from '../hooks/useMovies';
-import { useDebounce } from 'use-debounce';
 import { LoginModal } from './auth/LoginModal';
 import { useAuth } from '../context/AuthContext';
 import { IconInfoCircle, IconLogin } from '@tabler/icons-react';
@@ -29,40 +28,25 @@ import { deleteMovieFromLibrary } from '../api/movies';
 import { useMovieRequests } from '../hooks/useMovieRequest';
 import { useMovieFilters } from '../hooks/useMovieFilters';
 
-
-
 export function MovieDashboard() {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [deletingMovieId, setDeletingMovieId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const loadingRequests = false;
 
-  const { movieRequests, handleMovieRequest, movieRequestModal: { closeMovieRequestModal, movieRequestModalOpened, openMovieRequestModal } } = useMovieRequests();
+  const movieRequests = useMovieRequests();
+  const movieFilters = useMovieFilters()
+  const auth = useAuth();
+
+  const movieLibrary = useMovieLibrary({
+    filters: movieFilters.filters,
+    debouncedQuery: movieFilters.debouncedQuery,
+    sortBy: movieFilters.sortBy,
+  });
+
   const handleWatchMovie = (movie: Movie) => {
     setSelectedMovie(movie);
   };
-
-  const { availability, filters, sortBy, setSortBy, handlers } = useMovieFilters()
-
-  const { handleLogin, openLoginModal, loginModalOpened, closeLoginModal, context } = useAuth();
-
-  const [debouncedQuery] = useDebounce(filters.query, 500);
-
-  const {
-    movies,
-    isLoading: loadingLibrary,
-    error,
-    reloadLocalLibrary,
-    loadMoreLocalMovies,
-    hasMoreLocalMovies,
-    isLoadingMoreLocalMovies,
-    isSearching,
-    stats,
-  } = useMovieLibrary({
-    filters,
-    debouncedQuery,
-    sortBy,
-  });
 
   const handleBackToLibrary = () => {
     setSelectedMovie(null);
@@ -74,7 +58,7 @@ export function MovieDashboard() {
 
     try {
       await deleteMovieFromLibrary(movie.id);
-      await reloadLocalLibrary();
+      await movieLibrary.reloadLocalLibrary();
     } catch (error) {
       const message = error instanceof Error
         ? error.message
@@ -94,20 +78,20 @@ export function MovieDashboard() {
     );
   }
 
-  const resultLabel = `${movies.length} ${movies.length === 1 ? 'movie' : 'movies'} found`;
-  const showLoadMore = hasMoreLocalMovies && !error;
-  const showEmptyState = !loadingLibrary && movies.length === 0 && !error;
+  const resultLabel = `${movieLibrary.movies.length} ${movieLibrary.movies.length === 1 ? 'movie' : 'movies'} found`;
+  const showLoadMore = movieLibrary.hasMoreLocalMovies && !movieLibrary.error;
+  const showEmptyState = movieLibrary.isLoading && movieLibrary.movies.length === 0 && !movieLibrary.error;
 
   return (
     <Container size="lg" py="xl">
       <Stack gap="xl">
         <DashboardHeader
-          isAuthenticated={Boolean(context.user)}
-          onLogin={openLoginModal}
-          onRequestMovie={openMovieRequestModal}
+          isAuthenticated={Boolean(auth.context.user)}
+          onLogin={auth.openLoginModal}
+          onRequestMovie={movieRequests.modal.openMovieRequestModal}
         />
 
-        <LibraryStats movies={movies} stats={stats} />
+        <LibraryStats movies={movieLibrary.movies} stats={movieLibrary.stats} />
 
         <Paper withBorder radius="lg" p={{ base: 'lg', md: 'xl' }}>
           <Stack gap="lg">
@@ -117,13 +101,13 @@ export function MovieDashboard() {
             />
 
             <MovieFilters
-              filters={filters}
-              onFiltersChange={handlers.handleFiltersChange}
-              availability={availability}
-              onAvailabilityChange={handlers.handleAvailabilityChange}
-              sortBy={sortBy}
-              onSortChange={(value) => setSortBy(value)}
-              onClearFilters={handlers.handleClearFilters}
+              filters={movieFilters.filters}
+              onFiltersChange={movieFilters.handlers.handleFiltersChange}
+              availability={movieFilters.availability}
+              onAvailabilityChange={movieFilters.handlers.handleAvailabilityChange}
+              sortBy={movieFilters.sortBy}
+              onSortChange={(value) => movieFilters.setSortBy(value)}
+              onClearFilters={movieFilters.handlers.handleClearFilters}
             />
 
             <Text size="sm" c="dimmed">
@@ -137,8 +121,8 @@ export function MovieDashboard() {
             )}
 
             <MovieGrid
-              movies={movies}
-              isLoading={loadingLibrary}
+              movies={movieLibrary.movies}
+              isLoading={movieLibrary.isLoading}
               onSelectMovie={handleWatchMovie}
               onDeleteMovie={(movie) => {
                 void handleDeleteMovie(movie);
@@ -150,20 +134,20 @@ export function MovieDashboard() {
               <Group justify="center">
                 <Button
                   variant="light"
-                  onClick={() => { void loadMoreLocalMovies(); }}
-                  loading={isLoadingMoreLocalMovies}
+                  onClick={() => { void movieLibrary.loadMoreLocalMovies(); }}
+                  loading={movieLibrary.isLoadingMoreLocalMovies}
                 >
                   Load More
                 </Button>
               </Group>
             )}
 
-            {error && (
+            {movieLibrary.error && (
               <StatusMessage
-                title={isSearching ? 'Search Error' : 'Library Error'}
-                description={error instanceof Error
-                  ? error.message
-                  : isSearching
+                title={movieLibrary.isSearching ? 'Search Error' : 'Library Error'}
+                description={movieLibrary.error instanceof Error
+                  ? movieLibrary.error.message
+                  : movieLibrary.isSearching
                     ? 'Failed to search movies. Please try again.'
                     : 'Failed to load the local library. Please try again.'}
               />
@@ -172,7 +156,7 @@ export function MovieDashboard() {
             {showEmptyState && (
               <StatusMessage
                 title="No movies found"
-                description={debouncedQuery && debouncedQuery.length >= 2
+                description={movieFilters.debouncedQuery && movieFilters.debouncedQuery.length >= 2
                   ? 'No movies matched your search. Try another title.'
                   : 'Adjust your search or filters to discover more movies.'}
               />
@@ -182,29 +166,29 @@ export function MovieDashboard() {
 
         <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xl">
           <RequestQueue
-            requests={movieRequests}
+            requests={movieRequests.movieRequests}
             loading={loadingRequests}
-            onOpenRequestModal={openMovieRequestModal}
+            onOpenRequestModal={movieRequests.modal.openMovieRequestModal}
           />
 
           <MovieUploadSection
-            isAuthenticated={Boolean(context.user)}
-            onRequestLogin={openLoginModal}
-            onUploadSuccess={reloadLocalLibrary}
+            isAuthenticated={Boolean(auth.context.user)}
+            onRequestLogin={auth.openLoginModal}
+            onUploadSuccess={movieLibrary.reloadLocalLibrary}
           />
         </SimpleGrid>
       </Stack>
 
       <LoginModal
-        opened={loginModalOpened}
-        onClose={closeLoginModal}
-        onSubmit={handleLogin}
+        opened={auth.loginModalOpened}
+        onClose={auth.closeLoginModal}
+        onSubmit={auth.handleLogin}
       />
 
       <MovieRequestForm
-        opened={movieRequestModalOpened}
-        onClose={closeMovieRequestModal}
-        onSubmit={handleMovieRequest}
+        opened={movieRequests.modal.movieRequestModalOpened}
+        onClose={movieRequests.modal.closeMovieRequestModal}
+        onSubmit={movieRequests.handleMovieRequest}
       />
     </Container>
   );

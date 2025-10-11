@@ -10,8 +10,9 @@ import {
   Text,
   Tooltip
 } from '@mantine/core';
-import { IconBellRinging, IconBookmark, IconPlayerPlay, IconTrash } from './icons';
+import { IconBellRinging, IconPlayerPlay } from './icons';
 import type { Movie } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 interface MovieCardProps {
   movie: Movie;
@@ -24,6 +25,7 @@ const FALLBACK_POSTER = 'https://images.unsplash.com/photo-1524985069026-dd778a7
 
 export function MovieCard({ movie, onWatchClick, onDeleteClick, isDeleting = false }: MovieCardProps) {
   const topCast = movie.cast.slice(0, 3).join(', ');
+  const auth = useAuth();
 
   return (
     <Card withBorder radius="lg" p="lg" shadow="sm" style={{ height: '100%' }}>
@@ -67,25 +69,6 @@ export function MovieCard({ movie, onWatchClick, onDeleteClick, isDeleting = fal
               {movie.year} • {movie.duration} min • {movie.director}
             </Text>
           </Stack>
-          {movie.available && onDeleteClick ? (
-            <Tooltip label="Delete movie" withArrow>
-              <ActionIcon
-                variant="light"
-                color="red"
-                aria-label="Delete movie"
-                disabled={isDeleting}
-                onClick={() => !isDeleting && onDeleteClick(movie)}
-              >
-                <IconTrash size={16} />
-              </ActionIcon>
-            </Tooltip>
-          ) : (
-            <Tooltip label="Add to watchlist" withArrow>
-              <ActionIcon variant="light" color="gray" aria-label="Add to watchlist">
-                <IconBookmark size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
         </Group>
 
         <Group gap="xs">
@@ -117,7 +100,7 @@ export function MovieCard({ movie, onWatchClick, onDeleteClick, isDeleting = fal
         >
           {movie.hasVideo ? (movie.available ? 'Watch' : 'Coming Soon') : 'No Video'}
         </Button>
-        {movie.available && onDeleteClick && (
+        {movie.available && auth.context.user && onDeleteClick && (
           <Button
             variant="light"
             color="red"

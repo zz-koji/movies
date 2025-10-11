@@ -419,9 +419,7 @@ export class MoviesService {
           eb('mm.director', 'ilike', searchPattern),
           eb('mm.actors', 'ilike', searchPattern),
         ]),
-
       )
-
     }
 
     if (genreFilter) {
@@ -457,6 +455,7 @@ export class MoviesService {
       moviesQuery.execute(),
       totalQuery
         .select(({ fn }) => fn.count<number>('id').as('count'))
+        .select(({ fn }) => fn.sum<number>('mm.runtime').as('runtime'))
         .executeTakeFirst(),
       subTotalQuery
         .select(({ fn }) => fn.count<number>('id').as('count'))
@@ -472,6 +471,7 @@ export class MoviesService {
     const total = totalResult?.count ? Number(totalResult.count) : 0
     const subTotal = subTotalResult?.count ? Number(subTotalResult.count) : 0
     const comingSoon = comingSoonResult?.count ? Number(comingSoonResult.count) : 0
+    const totalRuntime = totalResult?.runtime ? Number(totalResult.runtime) : 0
 
     const limit = query?.limit ? Number(query.limit) : 0
     const page = query?.page ? Number(query.page) : 0
@@ -493,6 +493,7 @@ export class MoviesService {
     }
 
 
+
     return {
       data: enrichedMovies,
       pagination: {
@@ -501,6 +502,7 @@ export class MoviesService {
         page,
         limit,
         total,
+        totalRuntime,
         totalPages,
         hasNextPage,
       },
@@ -510,5 +512,15 @@ export class MoviesService {
   async getMovieStats(omdbMovieId: string) {
     const movieFileKey = await this.getMovieFileKey(omdbMovieId)
     return await this.minioClient.statObject(this.bucket, movieFileKey)
+  }
+
+  async deleteMovie(imdbId: string) {
+    const movieFileKey = await this.getMovieFileKey(imdbId)
+    const [deleteRecord, _deleteObject] = await Promise.all([
+      await this.db.deleteFrom('local_movies').where('omdb_id', '=', imdbId).returningAll().executeTakeFirst(),
+      await this.minioClient.removeObject(this.bucket, movieFileKey)
+    ])
+
+    return deleteRecord
   }
 }
