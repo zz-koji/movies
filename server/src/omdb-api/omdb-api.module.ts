@@ -6,6 +6,6 @@ import { DatabaseModule } from 'src/database/database.module';
 @Module({
   imports: [HttpModule, DatabaseModule],
   providers: [OmdbApiService],
-  exports: [OmdbApiService]
+  exports: [OmdbApiService],
 })
-export class OmdbApiModule { }
+export class OmdbApiModule {}

@@ -6,5 +6,5 @@ export type GetLocalMoviesDto = {
   year?: number | string;
   rating?: number | string;
   available?: boolean | string;
-  sortBy?: 'title' | 'year' | 'rating'
+  sortBy?: 'title' | 'year' | 'rating';
 };

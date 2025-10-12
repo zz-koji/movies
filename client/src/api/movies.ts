@@ -32,6 +32,7 @@ type GetMovieLibraryOptions = {
   query?: string;
   genre?: string;
   year?: number;
+  sortBy?: 'title' | 'rating' | 'year'
   rating?: number;
   available?: boolean;
 };
@@ -119,7 +120,7 @@ function buildFallbackPagination(total: number): MovieLibraryPagination {
 
 async function requestLocalMovies(
   params: URLSearchParams,
-  fallback: { page: number; limit: number },
+  fallback: { page: number; limit: number, sortBy: 'title' | 'year' | 'rating' },
 ): Promise<{ records: LocalMovieRecord[]; pagination: MovieLibraryPagination }> {
   const queryString = params.size > 0 ? `?${params.toString()}` : '';
   const response = await fetch(`${API_BASE_URL}/movies/local${queryString}`);
@@ -128,7 +129,11 @@ async function requestLocalMovies(
     throw new Error(`Failed to load local library: ${response.statusText}`);
   }
 
+
   const payload: PaginatedLocalMoviesResponse | LocalMovieRecord[] = await response.json();
+
+  console.log(`Payload from requestLocalMovies: \n`, payload)
+
   const records: LocalMovieRecord[] = Array.isArray(payload)
     ? payload
     : Array.isArray(payload.data)
@@ -168,10 +173,12 @@ export async function getMovieLibrary(
 ): Promise<MovieLibraryResult> {
   const page = options.page && options.page > 0 ? options.page : 1;
   const limit = options.limit && options.limit > 0 ? options.limit : DEFAULT_LIBRARY_PAGE_SIZE;
+  const sortBy = options.sortBy ? options.sortBy : 'title'
 
   const params = new URLSearchParams({
     page: String(page),
     limit: String(limit),
+    sortBy: String(sortBy)
   });
 
   const trimmedQuery = options.query?.trim();
@@ -196,7 +203,7 @@ export async function getMovieLibrary(
     params.set('available', String(options.available));
   }
 
-  const fallback = { page, limit };
+  const fallback = { page, limit, sortBy };
 
   try {
     const { records, pagination } = await requestLocalMovies(params, fallback);

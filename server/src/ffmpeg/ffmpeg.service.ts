@@ -9,7 +9,7 @@ export class FfmpegService {
   private ffmpegBinary: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.ffmpegBinary = this.configService.get('FFMPEG_PATH') ?? 'ffmpeg'
+    this.ffmpegBinary = this.configService.get('FFMPEG_PATH') ?? 'ffmpeg';
   }
 
   // Video file encoding "+faststart" that makes metadata available before full download finishes.
@@ -22,7 +22,16 @@ export class FfmpegService {
     await new Promise<void>((resolve, reject) => {
       // Re-mux the upload with `+faststart` so metadata is available before the full download finishes.
 
-      const ffmpeg = spawn(this.ffmpegBinary, ['-y', '-i', sourcePath, '-c', 'copy', '-movflags', '+faststart', targetPath]);
+      const ffmpeg = spawn(this.ffmpegBinary, [
+        '-y',
+        '-i',
+        sourcePath,
+        '-c',
+        'copy',
+        '-movflags',
+        '+faststart',
+        targetPath,
+      ]);
       let stderr = '';
 
       // Listen for ffmpeg errors.
@@ -40,7 +49,9 @@ export class FfmpegService {
           resolve();
         } else {
           await unlink(targetPath).catch(() => undefined);
-          reject(new Error(`FFmpeg exited with code ${code}: ${stderr.trim()}`));
+          reject(
+            new Error(`FFmpeg exited with code ${code}: ${stderr.trim()}`),
+          );
         }
       });
     });
@@ -48,4 +59,3 @@ export class FfmpegService {
     return targetPath;
   }
 }
-

@@ -68,5 +68,12 @@ type GeneratedMovieMetadataColumns = {
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 };
-export type MovieMetadataTable = Omit<MovieMetadata, keyof GeneratedMovieMetadataColumns> & GeneratedMovieMetadataColumns;
-export type MovieMetadataInsert = Omit<MovieMetadataTable, 'created_at' | 'updated_at'>;
+export type MovieMetadataTable = Omit<
+  MovieMetadata,
+  keyof GeneratedMovieMetadataColumns
+> &
+  GeneratedMovieMetadataColumns;
+export type MovieMetadataInsert = Omit<
+  MovieMetadataTable,
+  'created_at' | 'updated_at'
+>;

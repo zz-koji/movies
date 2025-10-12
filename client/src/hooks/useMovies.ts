@@ -119,13 +119,12 @@ export function useMovieLibrary({
         };
 
         if (effectiveFilters?.genre) requestOptions.genre = effectiveFilters.genre;
+        if (sortBy) requestOptions.sortBy = sortBy
         if (typeof effectiveFilters?.year === 'number') requestOptions.year = effectiveFilters.year;
         if (typeof effectiveFilters?.rating === 'number') requestOptions.rating = effectiveFilters.rating;
         if (typeof effectiveFilters?.available === 'boolean') requestOptions.available = effectiveFilters.available;
 
         const raw = await getMovieLibrary(requestOptions)
-
-
 
         const pageMovies: Movie[] = raw.movies
         const pagination = raw.pagination
@@ -156,7 +155,7 @@ export function useMovieLibrary({
         setIsLoadingLocalLibrary(false);
       }
     },
-    [activeQuery, filters.available, filters.genre, filters.rating, filters.year],
+    [activeQuery, sortBy, filters.available, filters.genre, filters.rating, filters.year],
   );
 
   const reloadLocalLibrary = useCallback(async () => {

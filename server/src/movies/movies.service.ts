@@ -1,4 +1,5 @@
 import { BadRequestException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config'
 import { GetMovieDto, GetLocalMoviesDto, omdbMovieSchema, GetMoviesDto, LocalMovie, OmdbMovie } from './types'
 import { Client as MinioClient } from 'minio'
 import { Database } from 'src/database/types';
@@ -24,14 +25,21 @@ interface RangeBounds {
 
 @Injectable()
 export class MoviesService {
-  private static readonly STREAM_CHUNK_SIZE = 200_000_000; // ~1MB default range window
-  private bucket: string = 'movies';
+  private static readonly DEFAULT_STREAM_CHUNK_SIZE = 1_048_576 // 1MB
+  private static readonly MIN_STREAM_CHUNK_SIZE = 262_144
+  private static readonly MAX_STREAM_CHUNK_SIZE = 8_388_608
+  private bucket: string = 'movies'
+  private readonly streamChunkSize: number
   constructor(
     @Inject('MINIO_CLIENT') private readonly minioClient: MinioClient,
     @Inject('MOVIES_DATABASE') private readonly db: Kysely<Database>,
     private readonly ffmpegService: FfmpegService,
     private readonly omdbService: OmdbApiService,
-    private readonly metadataService: MetadataService) {
+    private readonly metadataService: MetadataService,
+    private readonly configService: ConfigService) {
+    this.streamChunkSize = MoviesService.resolveStreamChunkSize(
+      this.configService.get('STREAM_CHUNK_SIZE')
+    )
   }
 
   async getMovies(param: GetMoviesDto) {
@@ -229,7 +237,7 @@ export class MoviesService {
       }
     }
 
-    const range = MoviesService.parseRangeHeader(rangeHeader, fileSize)
+    const range = MoviesService.parseRangeHeader(rangeHeader, fileSize, this.streamChunkSize)
 
     if (!range) {
       return {
@@ -258,7 +266,7 @@ export class MoviesService {
     }
   }
 
-  private static parseRangeHeader(rangeHeader: string, fileSize: number): RangeBounds | null {
+  private static parseRangeHeader(rangeHeader: string, fileSize: number, chunkSize: number): RangeBounds | null {
     // Match Range headers such as `bytes=0-500`; capture groups hold the start/end digits.
     const matches = /bytes=(\d*)-(\d*)/i.exec(rangeHeader)
 
@@ -304,7 +312,7 @@ export class MoviesService {
 
     if (!hasEnd) {
       // Open-ended range: stream a bounded window starting from `start`.
-      const computedEnd = start + MoviesService.STREAM_CHUNK_SIZE - 1
+      const computedEnd = start + chunkSize - 1
       return { start, end: Math.min(computedEnd, Math.max(fileSize - 1, 0)) }
     }
 
@@ -315,6 +323,29 @@ export class MoviesService {
     }
 
     return { start, end }
+  }
+
+  private static resolveStreamChunkSize(rawSize: unknown): number {
+    const fallback = MoviesService.DEFAULT_STREAM_CHUNK_SIZE
+
+    if (rawSize === null || rawSize === undefined || rawSize === '') {
+      return fallback
+    }
+
+    const parsed = typeof rawSize === 'number'
+      ? rawSize
+      : Number.parseInt(String(rawSize), 10)
+
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return fallback
+    }
+
+    const bounded = Math.min(
+      MoviesService.MAX_STREAM_CHUNK_SIZE,
+      Math.max(parsed, MoviesService.MIN_STREAM_CHUNK_SIZE)
+    )
+
+    return bounded
   }
 
   private static parseNumericQueryParam(value: unknown) {
@@ -405,14 +436,24 @@ export class MoviesService {
     const availabilityFilter = MoviesService.parseBooleanQueryParam(query.available)
     const offset = (page - 1) * limit
 
+    const sortBy: 'title' | 'year' | 'rating' =
+      query.sortBy === 'rating' || query.sortBy === 'year' ? query.sortBy : 'title'
+
     return {
-      pagination: { page, limit }, searchPattern, genreFilter, yearFilter, minRatingFilter, availabilityFilter, offset
+      pagination: { page, limit },
+      searchPattern,
+      genreFilter,
+      yearFilter,
+      minRatingFilter,
+      availabilityFilter,
+      offset,
+      sortBy,
 
     }
   }
 
   private buildLocalMoviesQuery(query: GetLocalMoviesDto = {}) {
-    const { genreFilter, minRatingFilter, offset, pagination: { limit }, searchPattern, yearFilter } = MoviesService.resolveQuery(query)
+    const { genreFilter, minRatingFilter, offset, pagination: { limit }, searchPattern, yearFilter, sortBy } = MoviesService.resolveQuery(query)
     let moviesQuery = this.db
       .selectFrom('local_movies as lm')
       .leftJoin('movie_metadata as mm', 'mm.omdb_id', 'lm.omdb_id')
@@ -478,7 +519,23 @@ export class MoviesService {
       comingSoonQuery = comingSoonQuery.where('mm.imdb_rating', '>=', minRatingFilter)
     }
 
-    moviesQuery = moviesQuery.orderBy('lm.title', 'asc').offset(offset).limit(limit)
+    if (sortBy === 'rating') {
+      moviesQuery = moviesQuery
+        .orderBy('mm.imdb_rating', 'desc')
+        .orderBy('mm.title', 'asc')
+        .orderBy('lm.title', 'asc')
+    } else if (sortBy === 'year') {
+      moviesQuery = moviesQuery
+        .orderBy('mm.year', 'desc')
+        .orderBy('mm.title', 'asc')
+        .orderBy('lm.title', 'asc')
+    } else {
+      moviesQuery = moviesQuery
+        .orderBy('mm.title', 'asc')
+        .orderBy('lm.title', 'asc')
+    }
+
+    moviesQuery = moviesQuery.offset(offset).limit(limit)
 
     return { moviesQuery, totalQuery, subTotalQuery, comingSoonQuery }
   }

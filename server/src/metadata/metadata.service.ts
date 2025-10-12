@@ -1,44 +1,48 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
 import { Database } from 'src/database/types';
-import { MovieMetadata, MovieMetadataInsert, OmdbMovie } from 'src/movies/types';
+import {
+  MovieMetadata,
+  MovieMetadataInsert,
+  OmdbMovie,
+} from 'src/movies/types';
 
 @Injectable()
 export class MetadataService {
   constructor(
-    @Inject('MOVIES_DATABASE') private readonly db: Kysely<Database>
-  ) { }
+    @Inject('MOVIES_DATABASE') private readonly db: Kysely<Database>,
+  ) {}
 
   private static parseYear(value?: string | null): number | null {
     if (!value) {
-      return null
+      return null;
     }
 
-    const parsed = Number.parseInt(value, 10)
-    return Number.isNaN(parsed) ? null : parsed
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? null : parsed;
   }
 
   private static parseImdbRating(value?: string | null): number | null {
     if (!value) {
-      return null
+      return null;
     }
 
-    const parsed = Number.parseFloat(value)
-    return Number.isNaN(parsed) ? null : parsed
+    const parsed = Number.parseFloat(value);
+    return Number.isNaN(parsed) ? null : parsed;
   }
 
   private static parseRuntimeMinutes(value?: string | null): number | null {
     if (!value) {
-      return null
+      return null;
     }
 
-    const match = value.match(/(\d+)/)
+    const match = value.match(/(\d+)/);
     if (!match) {
-      return null
+      return null;
     }
 
-    const minutes = Number.parseInt(match[1] ?? '', 10)
-    return Number.isNaN(minutes) ? null : minutes
+    const minutes = Number.parseInt(match[1] ?? '', 10);
+    return Number.isNaN(minutes) ? null : minutes;
   }
 
   private static buildMetadataRecord(movie: OmdbMovie): MovieMetadataInsert {
@@ -52,23 +56,29 @@ export class MetadataService {
       imdb_rating: MetadataService.parseImdbRating(movie.imdbRating),
       runtime: MetadataService.parseRuntimeMinutes(movie.Runtime),
       data: movie,
-    }
+    };
   }
 
-  async getMovieMetadataRow(omdbId: string): Promise<MovieMetadata | undefined> {
+  async getMovieMetadataRow(
+    omdbId: string,
+  ): Promise<MovieMetadata | undefined> {
     return await this.db
       .selectFrom('movie_metadata')
       .selectAll()
       .where('omdb_id', '=', omdbId)
-      .executeTakeFirst()
+      .executeTakeFirst();
   }
 
   async getMoviesMetadataRows(title: string) {
-    return await this.db.selectFrom('movie_metadata').selectAll().where('title', 'ilike', `${title}`).execute()
+    return await this.db
+      .selectFrom('movie_metadata')
+      .selectAll()
+      .where('title', 'ilike', `${title}`)
+      .execute();
   }
 
   async upsertMovieMetadata(movie: OmdbMovie) {
-    const record = MetadataService.buildMetadataRecord(movie)
+    const record = MetadataService.buildMetadataRecord(movie);
 
     await this.db
       .insertInto('movie_metadata')
@@ -86,6 +96,6 @@ export class MetadataService {
           updated_at: sql`now()`,
         }),
       )
-      .execute()
+      .execute();
   }
 }

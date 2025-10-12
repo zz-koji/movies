@@ -48,7 +48,29 @@ export class MoviesController {
     }
 
     res.flushHeaders?.()
-    stream.on('error', (error) => res.destroy(error))
+
+    const onClose = () => {
+      stream.off('error', onError)
+      stream.off('end', onEnd)
+      stream.destroy()
+    }
+
+    const onEnd = () => {
+      res.off('close', onClose)
+      stream.off('error', onError)
+    }
+
+    const onError = (error: unknown) => {
+      res.off('close', onClose)
+      stream.off('end', onEnd)
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
+      res.destroy(normalizedError)
+    }
+
+    res.once('close', onClose)
+    stream.once('end', onEnd)
+    stream.once('error', onError)
+
     stream.pipe(res)
   }
 

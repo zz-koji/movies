@@ -11,18 +11,22 @@ import { OmdbApiModule } from 'src/omdb-api/omdb-api.module';
 import { MetadataModule } from 'src/metadata/metadata.module';
 
 @Module({
-  imports: [HttpModule,
+  imports: [
+    HttpModule,
     OmdbApiModule,
     MetadataModule,
     FfmpegModule,
     MulterModule.register({
       storage: diskStorage({
         destination: './uploads',
-        filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
+        filename: (req, file, cb) =>
+          cb(null, Date.now() + '-' + file.originalname),
       }),
-    })
-    , MinioModule, DatabaseModule],
+    }),
+    MinioModule,
+    DatabaseModule,
+  ],
   providers: [MoviesService],
-  controllers: [MoviesController]
+  controllers: [MoviesController],
 })
-export class MoviesModule { }
+export class MoviesModule {}

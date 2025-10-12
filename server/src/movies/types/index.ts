@@ -1,2 +1,2 @@
-export * from './dto'
-export * from './movie.type'
+export * from './dto';
+export * from './movie.type';
