@@ -132,8 +132,6 @@ async function requestLocalMovies(
 
   const payload: PaginatedLocalMoviesResponse | LocalMovieRecord[] = await response.json();
 
-  console.log(`Payload from requestLocalMovies: \n`, payload)
-
   const records: LocalMovieRecord[] = Array.isArray(payload)
     ? payload
     : Array.isArray(payload.data)

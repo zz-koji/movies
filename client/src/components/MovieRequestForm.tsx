@@ -1,5 +1,6 @@
 import {
   Button,
+  ComboboxSearch,
   Divider,
   Group,
   Modal,
@@ -24,9 +25,6 @@ export function MovieRequestForm({ opened, onClose, onSubmit }: MovieRequestForm
   const form = useForm({
     initialValues: {
       title: '',
-      year: '',
-      description: '',
-      requestedBy: '',
       priority: 'medium' as 'low' | 'medium' | 'high'
     },
     validate: zodResolver(movieRequestSchema)
@@ -35,9 +33,6 @@ export function MovieRequestForm({ opened, onClose, onSubmit }: MovieRequestForm
   const handleSubmit = form.onSubmit((values) => {
     const request: MovieRequest = {
       title: values.title.trim(),
-      year: values.year?.trim() || undefined,
-      description: values.description?.trim() || undefined,
-      requestedBy: values.requestedBy.trim(),
       priority: values.priority
     };
 
@@ -55,51 +50,24 @@ export function MovieRequestForm({ opened, onClose, onSubmit }: MovieRequestForm
             sync run.
           </Text>
 
+
           <TextInput
             label="Movie title"
-            placeholder="Enter the exact movie name"
+            placeholder="Enter the name of the movie you want added to the library."
             required
             leftSection={<IconMovie size={16} />}
             {...form.getInputProps('title')}
           />
 
-          <Group grow>
-            <TextInput
-              label="Release year"
-              placeholder="e.g. 2024"
-              maxLength={4}
-              {...form.getInputProps('year')}
-            />
-            <Select
-              label="Priority"
-              data={[
-                { value: 'low', label: 'Low — grab when convenient' },
-                { value: 'medium', label: 'Medium — add to the shortlist' },
-                { value: 'high', label: 'High — next movie night pick' }
-              ]}
-              {...form.getInputProps('priority')}
-            />
-          </Group>
-
-          <Textarea
-            label="Why should we add this?"
-            placeholder="Add any notes, links, or preferred editions"
-            autosize
-            minRows={3}
-            maxLength={400}
-            {...form.getInputProps('description')}
+          <Select
+            label="Priority"
+            data={[
+              { value: 'low', label: 'Low — grab when convenient' },
+              { value: 'medium', label: 'Medium — add to the shortlist' },
+              { value: 'high', label: 'High — next movie night pick' }
+            ]}
+            {...form.getInputProps('priority')}
           />
-
-          <TextInput
-            label="Your name"
-            placeholder="Who is making this request?"
-            required
-            leftSection={<IconUser size={16} />}
-            {...form.getInputProps('requestedBy')}
-          />
-
-          <Divider my="sm" />
-
           <Group justify="flex-end">
             <Button variant="subtle" color="gray" onClick={onClose}>
               Cancel

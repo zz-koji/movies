@@ -18,21 +18,56 @@ export type Movie = {
   videoFormat?: string;
 }
 
+
+export const localMovieSchema = z.object({
+  id: z.uuid(),
+  omdb_id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  movie_file_key: z.string(),
+  subtitle_file_key: z.string().optional(),
+});
+
+export type LocalMovie = z.infer<typeof localMovieSchema>
+
+export const omdbMovieSchema = z.object({
+  Title: z.string(),
+  Year: z.string(),
+  Rated: z.string(),
+  Released: z.string(),
+  Runtime: z.string(),
+  Genre: z.string(),
+  Director: z.string(),
+  Writer: z.string(),
+  Actors: z.string(),
+  Plot: z.string(),
+  Language: z.string(),
+  Country: z.string(),
+  Awards: z.string(),
+  Poster: z.string(),
+  Ratings: z.array(
+    z.object({
+      Source: z.string(),
+      Value: z.string(),
+    }),
+  ),
+  Metascore: z.string(),
+  imdbRating: z.string(),
+  imdbVotes: z.string(),
+  imdbID: z.string(),
+  Type: z.string(),
+  DVD: z.string().optional(),
+  BoxOffice: z.string().optional(),
+  Production: z.string().optional(),
+  Website: z.string().optional(),
+  Response: z.literal('True'),
+});
+
+export type OmdbMovie = z.infer<typeof omdbMovieSchema>;
+
+
 export const movieRequestSchema = z.object({
   title: z.string().min(1, 'Movie title is required'),
-  year: z
-    .string()
-    .optional()
-    .refine(
-      (val) => {
-        if (!val) return true;
-        const yearNum = parseInt(val, 10);
-        return !isNaN(yearNum) && yearNum >= 1800 && yearNum <= 2100;
-      },
-      { message: 'Year must be between 1800 and 2100' }
-    ),
-  description: z.string().optional(),
-  requestedBy: z.string().min(1, 'Your name is required'),
   priority: z.enum(['low', 'medium', 'high'])
 });
 

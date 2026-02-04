@@ -43,19 +43,6 @@ export class MoviesService {
   }
 
   async getMovies(param: GetMoviesDto) {
-    if (param.title) {
-      const cached = await this.metadataService.getMoviesMetadataRows(param.title)
-      const cachedData = cached?.map(movie => {
-        if (movie?.data) {
-          return movie.data
-        }
-      })
-
-      if (Array.isArray(cachedData) && cached.length > 0) {
-        return cachedData
-      }
-    }
-
     const movies = await this.omdbService.getMovies({ title: param.title, page: param.page })
     return movies
   }
@@ -469,6 +456,7 @@ export class MoviesService {
       .leftJoin('movie_metadata as mm', 'mr.omdb_id', 'mm.omdb_id')
 
     let subTotalQuery = totalQuery
+
 
     if (searchPattern) {
       moviesQuery = moviesQuery.where((eb) =>
