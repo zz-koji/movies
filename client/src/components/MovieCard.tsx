@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Badge,
   Button,
   Card,
@@ -7,12 +6,12 @@ import {
   Group,
   Image,
   Stack,
-  Text,
-  Tooltip
+  Text
 } from '@mantine/core';
-import { IconBellRinging, IconPlayerPlay } from './icons';
+import { IconPlayerPlay } from './icons';
 import type { Movie } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useQuickRequest } from '../hooks/useQuickRequest';
 
 interface MovieCardProps {
   movie: Movie;
@@ -90,7 +89,31 @@ export function MovieCard({ movie, onWatchClick, onDeleteClick, isDeleting = fal
         </Text>
       </Stack>
 
-      <Group mt="lg" justify="space-between" gap="sm" align="stretch" wrap="wrap">
+      <Stack mt="lg" gap="sm" hiddenFrom="sm">
+        <Button
+          leftSection={<IconPlayerPlay size={16} />}
+          disabled={!movie.available || !movie.hasVideo}
+          color={movie.available && movie.hasVideo ? 'cyan' : 'gray'}
+          fullWidth
+          onClick={() => movie.available && movie.hasVideo && onWatchClick?.(movie)}
+        >
+          {movie.hasVideo ? (movie.available ? 'Watch' : 'Coming Soon') : 'No Video'}
+        </Button>
+        {movie.available && auth.context.user && onDeleteClick && (
+          <Button
+            variant="light"
+            color="red"
+            disabled={isDeleting}
+            fullWidth
+            onClick={() => !isDeleting && onDeleteClick(movie)}
+          >
+            {isDeleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        )}
+        {!movie.available && <RequestButton movie={movie} fullWidth />}
+      </Stack>
+
+      <Group mt="lg" justify="space-between" gap="sm" align="stretch" wrap="wrap" visibleFrom="sm">
         <Button
           leftSection={<IconPlayerPlay size={16} />}
           disabled={!movie.available || !movie.hasVideo}
@@ -110,17 +133,46 @@ export function MovieCard({ movie, onWatchClick, onDeleteClick, isDeleting = fal
             {isDeleting ? 'Deleting…' : 'Delete'}
           </Button>
         )}
-        <Tooltip label="Add to watchlist" withArrow>
-          <ActionIcon
-            variant="light"
-            color="cyan"
-            size="lg"
-            aria-label="Add to watchlist"
-          >
-            <IconBellRinging size={18} />
-          </ActionIcon>
-        </Tooltip>
+        {!movie.available && <RequestButton movie={movie} />}
       </Group>
     </Card>
+  );
+}
+
+interface RequestButtonProps {
+  movie: Movie;
+  fullWidth?: boolean;
+}
+
+function RequestButton({ movie, fullWidth }: RequestButtonProps) {
+  const { quickRequest, isRequesting, isRequested } = useQuickRequest();
+  const requested = isRequested(movie.id);
+  const requesting = isRequesting(movie.id);
+
+  if (requested) {
+    return (
+      <Button
+        variant="light"
+        color="grape"
+        disabled
+        fullWidth={fullWidth}
+        style={!fullWidth ? { flex: 1 } : undefined}
+      >
+        Requested ✓
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      variant="filled"
+      color="grape"
+      loading={requesting}
+      onClick={() => quickRequest(movie)}
+      fullWidth={fullWidth}
+      style={!fullWidth ? { flex: 1 } : undefined}
+    >
+      {requesting ? 'Requesting...' : 'Request Movie'}
+    </Button>
   );
 }
