@@ -15,8 +15,10 @@ function loadRequestedMoviesFromStorage(): Set<string> {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      const arr = JSON.parse(stored) as string[];
-      return new Set(arr);
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.every(id => typeof id === 'string')) {
+        return new Set(parsed);
+      }
     }
   } catch (error) {
     console.error('Failed to load requested movies from localStorage:', error);
@@ -43,6 +45,7 @@ export function RequestedMoviesProvider({ children }: { children: ReactNode }) {
 
   const addRequestedMovie = (movieId: string) => {
     setRequestedMovieIds((prev) => {
+      if (prev.has(movieId)) return prev;
       const next = new Set(prev);
       next.add(movieId);
       return next;
@@ -51,6 +54,7 @@ export function RequestedMoviesProvider({ children }: { children: ReactNode }) {
 
   const removeRequestedMovie = (movieId: string) => {
     setRequestedMovieIds((prev) => {
+      if (!prev.has(movieId)) return prev;
       const next = new Set(prev);
       next.delete(movieId);
       return next;
