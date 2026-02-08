@@ -143,6 +143,7 @@ export class MoviesService {
 
   async uploadMovie(movie: Express.Multer.File, omdbMovieId: string) {
     let uploadCompleted = false;
+    let fileName: string | undefined;
 
     try {
       const fastStartPath = await this.convertMovieToFastStart(movie.path)
@@ -151,7 +152,7 @@ export class MoviesService {
       const outputExt = extname(fastStartPath);
       const originalName = movie.originalname.toLowerCase();
       const nameWithoutExt = originalName.replace(/\.[^.]+$/, '');
-      const fileName = `${nameWithoutExt}${outputExt}`;
+      fileName = `${nameWithoutExt}${outputExt}`;
       const mimetype = outputExt === '.mp4' ? 'video/mp4' : movie.mimetype;
 
       const processedMovieFile = await this.uploadToMinio(fastStartPath, fileName, mimetype)
@@ -172,7 +173,7 @@ export class MoviesService {
 
       return { upload: processedMovieFile, movie: recordUpload };
     } catch (error) {
-      if (uploadCompleted) {
+      if (uploadCompleted && fileName) {
         await this.minioClient.removeObject(this.bucket, fileName)
       }
       throw new BadRequestException(`Upload failed: ${error instanceof Error ? error.message : error}`);
