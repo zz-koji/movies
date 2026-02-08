@@ -11,7 +11,7 @@ import { Client } from 'minio';
       useFactory: (configService: ConfigService) => {
         return new Client({
           endPoint: configService.getOrThrow('MINIO_ENDPOINT'),
-          port: configService.getOrThrow('MINIO_PORT'),
+          port: parseInt(configService.getOrThrow('MINIO_PORT')),
           useSSL:
             configService.getOrThrow('MINIO_USE_SSL') === 'false'
               ? false

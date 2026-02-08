@@ -42,7 +42,6 @@ export type MovieLibraryResult = {
   pagination: MovieLibraryPagination;
 };
 
-const FALLBACK_MOVIES: Movie[] = [];
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 const DEFAULT_LIBRARY_PAGE_SIZE = 10;
 
@@ -104,18 +103,6 @@ function parseNumeric(value: unknown, fallback: number): number {
 
   const parsed = Number.parseInt(String(value), 10);
   return Number.isNaN(parsed) ? fallback : parsed;
-}
-
-function buildFallbackPagination(total: number): MovieLibraryPagination {
-  const limit = Math.max(1, total);
-
-  return {
-    page: 1,
-    limit,
-    total,
-    totalPages: total > 0 ? 1 : 0,
-    hasNextPage: false,
-  };
 }
 
 async function requestLocalMovies(
@@ -203,45 +190,21 @@ export async function getMovieLibrary(
 
   const fallback = { page, limit, sortBy };
 
-  try {
-    const { records, pagination } = await requestLocalMovies(params, fallback);
+  const { records, pagination } = await requestLocalMovies(params, fallback);
 
-    if (records.length === 0) {
-      return {
-        movies: [],
-        pagination,
-      };
-    }
-
-    const movies = await hydrateLocalMovieRecords(records);
-
+  if (records.length === 0) {
     return {
-      movies,
-      pagination,
-    };
-  } catch (error) {
-    console.error('Falling back to demo movies because loading the local library failed', error);
-    const fallbackMovies = [...FALLBACK_MOVIES];
-    const pagination = fallbackMovies.length > 0
-      ? buildFallbackPagination(fallbackMovies.length)
-      : buildFallbackPagination(0);
-
-    return {
-      movies: fallbackMovies,
+      movies: [],
       pagination,
     };
   }
-}
 
-export async function addMovieToLibrary(movie: Movie): Promise<void> {
-  FALLBACK_MOVIES.push(movie);
-}
+  const movies = await hydrateLocalMovieRecords(records);
 
-export async function updateMovieAvailability(movieId: string, available: boolean): Promise<void> {
-  const movie = FALLBACK_MOVIES.find((item) => item.id === movieId);
-  if (movie) {
-    movie.available = available;
-  }
+  return {
+    movies,
+    pagination,
+  };
 }
 
 export async function deleteMovieFromLibrary(omdbId: string): Promise<void> {

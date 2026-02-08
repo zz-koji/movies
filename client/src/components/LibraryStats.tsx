@@ -34,8 +34,7 @@ export function LibraryStats({ movies, stats }: LibraryStatsProps) {
     available: stats?.total,
     comingSoon: stats?.comingSoon,
     totalRuntime: stats?.totalRuntime,
-    averageRating:
-      typeof stats?.averageRating === 'number' ? Number(stats!.averageRating.toFixed(1)) : local.averageRating,
+    averageRating: local.averageRating,
   };
 
   const subTotal = movies.length

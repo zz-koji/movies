@@ -1,5 +1,3 @@
-\restrict guYTfnqv2fWjTFt7BK9hQjNOXJlMcaGgLE6nmzOIWNRunJdGc6KJMvnTFMngdFC
-
 -- Dumped from database version 17.6 (Debian 17.6-2.pgdg13+1)
 -- Dumped by pg_dump version 17.6
 
@@ -48,12 +46,31 @@ CREATE TABLE public.local_movies (
 
 
 --
--- Name: movie_request; Type: TABLE; Schema: public; Owner: -
+-- Name: movie_metadata; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.movie_request (
+CREATE TABLE public.movie_metadata (
+    omdb_id character varying(255) NOT NULL,
+    title character varying(255) NOT NULL,
+    year integer,
+    genre text,
+    director text,
+    actors text,
+    imdb_rating numeric(3,1),
+    runtime integer,
+    data jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: movie_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.movie_requests (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    imdb_id character varying(20) NOT NULL,
+    omdb_id character varying(20) NOT NULL,
     date_requested date DEFAULT now(),
     date_completed date,
     requested_by uuid NOT NULL
@@ -82,10 +99,26 @@ CREATE TABLE public.users (
 
 
 --
--- Name: movie_request movie_request_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: local_movies local_movies_omdb_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.movie_request
+ALTER TABLE ONLY public.local_movies
+    ADD CONSTRAINT local_movies_omdb_id_key UNIQUE (omdb_id);
+
+
+--
+-- Name: movie_metadata movie_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.movie_metadata
+    ADD CONSTRAINT movie_metadata_pkey PRIMARY KEY (omdb_id);
+
+
+--
+-- Name: movie_requests movie_request_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.movie_requests
     ADD CONSTRAINT movie_request_pkey PRIMARY KEY (id);
 
 
@@ -114,11 +147,29 @@ ALTER TABLE ONLY public.users
 
 
 --
--- PostgreSQL database dump complete
+-- Name: idx_movie_metadata_genre; Type: INDEX; Schema: public; Owner: -
 --
 
-\unrestrict guYTfnqv2fWjTFt7BK9hQjNOXJlMcaGgLE6nmzOIWNRunJdGc6KJMvnTFMngdFC
+CREATE INDEX idx_movie_metadata_genre ON public.movie_metadata USING gin (to_tsvector('simple'::regconfig, COALESCE(genre, ''::text)));
 
+
+--
+-- Name: idx_movie_metadata_title; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_movie_metadata_title ON public.movie_metadata USING gin (to_tsvector('simple'::regconfig, (title)::text));
+
+
+--
+-- Name: idx_movie_metadata_updated_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_movie_metadata_updated_at ON public.movie_metadata USING btree (updated_at DESC);
+
+
+--
+-- PostgreSQL database dump complete
+--
 
 --
 -- Dbmate schema migrations
@@ -129,4 +180,7 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20250928210930'),
     ('20250928225044'),
     ('20250928233737'),
-    ('20251003040223');
+    ('20251003040223'),
+    ('20251009081500'),
+    ('20251009223803'),
+    ('20251012120000');

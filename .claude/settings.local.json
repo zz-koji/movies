@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(dbmate --version:*)",
+      "Bash(docker compose ps:*)",
+      "Bash(DATABASE_URL=postgres://koji:dev_password@localhost:5432/movies?sslmode=disable:*)",
+      "Bash(dbmate status:*)",
+      "Bash(yarn build)",
+      "Bash(xargs:*)"
+    ]
+  }
+}

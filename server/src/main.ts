@@ -8,11 +8,19 @@ import cookieParser from 'cookie-parser';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors({
-    origin: process.env.FRONTEND_URL,
+    origin: process.env.ORIGIN_URL,
     credentials: true,
   });
-  //  app.useGlobalFilters(new DatabaseExceptionFilter(), new ZodExceptionFilter(), new HttpExceptionFilter());
+  app.useGlobalFilters(new DatabaseExceptionFilter(), new ZodExceptionFilter(), new HttpExceptionFilter());
   app.use(cookieParser());
   await app.listen(process.env.PORT ?? 3000);
+
+  process.on('SIGTERM', async () => {
+    await app.close();
+  });
+
+  process.on('SIGINT', async () => {
+    await app.close();
+  });
 }
 bootstrap();

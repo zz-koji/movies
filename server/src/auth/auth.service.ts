@@ -16,7 +16,6 @@ export class AuthService {
     const validPin = await this.usersService.getPin({
       name: parsedValues.name,
     });
-    console.log(validPin, parsedValues.pin);
     if (validPin !== parsedValues.pin) throw new UnauthorizedException();
   }
 

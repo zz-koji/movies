@@ -9,6 +9,10 @@ import { MinioModule } from './minio/minio.module';
 import { FfmpegModule } from './ffmpeg/ffmpeg.module';
 import { OmdbApiModule } from './omdb-api/omdb-api.module';
 import { MetadataModule } from './metadata/metadata.module';
+import { AdminModule } from './admin/admin.module';
+import { AuditModule } from './audit/audit.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { CommentsModule } from './comments/comments.module';
 
 @Module({
   imports: [
@@ -22,6 +26,10 @@ import { MetadataModule } from './metadata/metadata.module';
     FfmpegModule,
     OmdbApiModule,
     MetadataModule,
+    AdminModule,
+    AuditModule,
+    NotificationsModule,
+    CommentsModule,
   ],
 })
 export class AppModule {}

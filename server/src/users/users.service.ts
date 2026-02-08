@@ -1,11 +1,12 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { Kysely } from 'node_modules/kysely/dist/esm';
+import { Kysely } from 'kysely';
 import { Database } from 'src/database/types';
 import {
   createUserSchema,
   CreateUserSchema,
   updateUserSchema,
   UpdateUserSchema,
+  Role,
 } from './types';
 
 @Injectable()
@@ -19,13 +20,11 @@ export class UsersService {
     return await this.db
       .insertInto('users')
       .values(parsedValues)
-      .returning(['id', 'name', 'date_created'])
+      .returning(['id', 'name', 'date_created', 'role'])
       .executeTakeFirst();
   }
 
   async getPin({ name }: { name: string }) {
-    const allUsers = await this.db.selectFrom('users').selectAll().execute();
-    console.log(allUsers);
     const user = await this.db
       .selectFrom('users')
       .where('name', 'ilike', name)
@@ -45,13 +44,21 @@ export class UsersService {
       query = query.where('id', '=', id);
     }
 
-    return query.select(['id', 'name', 'date_created']).executeTakeFirst();
+    return query.select(['id', 'name', 'date_created', 'role']).executeTakeFirst();
   }
 
   async getUsers() {
     return await this.db
       .selectFrom('users')
-      .select(['id', 'name', 'date_created'])
+      .select(['id', 'name', 'date_created', 'role'])
+      .execute();
+  }
+
+  async getAllUsers() {
+    return await this.db
+      .selectFrom('users')
+      .select(['id', 'name', 'date_created', 'role'])
+      .orderBy('name', 'asc')
       .execute();
   }
 
@@ -61,7 +68,21 @@ export class UsersService {
       .updateTable('users')
       .where('id', '=', id)
       .set(values)
-      .returning(['id', 'name', 'date_created'])
+      .returning(['id', 'name', 'date_created', 'role'])
       .executeTakeFirst();
+  }
+
+  async updateUserRole(id: string, role: Role) {
+    return await this.db
+      .updateTable('users')
+      .where('id', '=', id)
+      .set({ role })
+      .returning(['id', 'name', 'date_created', 'role'])
+      .executeTakeFirst();
+  }
+
+  async isAdmin(id: string): Promise<boolean> {
+    const user = await this.getUser({ id });
+    return user?.role === 'admin';
   }
 }

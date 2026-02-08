@@ -16,7 +16,7 @@ import { Pool } from 'pg';
             user: configService.getOrThrow('POSTGRES_USER'),
             password: configService.getOrThrow('POSTGRES_PASSWORD'),
             database: configService.getOrThrow('POSTGRES_DB'),
-            port: configService.getOrThrow('DB_PORT'),
+            port: parseInt(configService.getOrThrow('DB_PORT')),
           }),
         });
         return new Kysely({ dialect });

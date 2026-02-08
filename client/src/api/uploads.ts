@@ -1,4 +1,5 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+const UPLOAD_BASE_URL = import.meta.env.VITE_UPLOAD_BASE_URL ?? `http://${window.location.hostname}:3000`;
 
 export interface UploadMovieParams {
   file: File;
@@ -94,7 +95,7 @@ export async function uploadMovie({ file, omdbId, onProgress, signal }: UploadMo
       const parseResponse = () => {
         const type = xhr.responseType;
 
-        if (type && type !== 'text' && type !== '') {
+        if (type && type !== 'text') {
           return xhr.response;
         }
 

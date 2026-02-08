@@ -1,4 +1,4 @@
-import { User } from '../users/types';
+import { User } from '../../users/types';
 
 declare module 'express' {
   export interface Response {

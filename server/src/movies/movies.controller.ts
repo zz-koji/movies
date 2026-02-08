@@ -1,9 +1,10 @@
-import { Controller, Delete, Get, Headers, Param, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Delete, Get, Headers, Param, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { MoviesService } from './movies.service';
 import type { GetMoviesDto, GetMovieDto, GetLocalMoviesDto } from './types'
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FileValidationPipe } from 'src/file-validation/file-validation.pipe';
 import type { Response } from 'express';
+import { AuthGuard } from 'src/auth/auth.guard';
 
 @Controller('movies')
 export class MoviesController {
@@ -30,6 +31,7 @@ export class MoviesController {
   }
 
   @Post('upload')
+  @UseGuards(AuthGuard)
   @UseInterceptors(FileInterceptor('file'))
   async uploadMovie(@UploadedFile(new FileValidationPipe()) file: Express.Multer.File, @Query('omdb_id') omdbMovieId: string) {
     return await this.moviesService.uploadMovie(file, omdbMovieId)
@@ -75,6 +77,7 @@ export class MoviesController {
   }
 
   @Delete('local/:imdbId')
+  @UseGuards(AuthGuard)
   async deleteMovie(@Param('imdbId') imdbId: string) {
     return await this.moviesService.deleteMovie(imdbId)
   }

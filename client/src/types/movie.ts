@@ -68,7 +68,9 @@ export type OmdbMovie = z.infer<typeof omdbMovieSchema>;
 
 export const movieRequestSchema = z.object({
   title: z.string().min(1, 'Movie title is required'),
-  priority: z.enum(['low', 'medium', 'high'])
+  priority: z.enum(['low', 'medium', 'high']),
+  notes: z.string().optional(),
+  omdb_id: z.string().optional(),
 });
 
 export type MovieRequest = z.infer<typeof movieRequestSchema>;

@@ -1,39 +1,52 @@
 import type { MovieRequest } from '../types';
 
+const VITE_PUBLIC_API_BASE_URL = import.meta.env.VITE_PUBLIC_API_BASE_URL || '/api';
+
 export type ExtendedMovieRequest = MovieRequest & {
   id: string;
-  submittedAt: string;
+  date_requested: string;
+  date_completed?: string | null;
+  requested_by: string;
   status: 'queued' | 'processing' | 'completed';
+  omdb_id?: string | null;
 };
 
-const LOCAL_REQUESTS: ExtendedMovieRequest[] = [];
-
 export async function getMovieRequests(): Promise<ExtendedMovieRequest[]> {
-  await new Promise(resolve => setTimeout(resolve, 200));
-  return LOCAL_REQUESTS;
+  const response = await fetch(`${VITE_PUBLIC_API_BASE_URL}/movie-requests`, {
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch movie requests: ${response.statusText}`);
+  }
+
+  return response.json();
 }
 
-export async function addMovieRequest(request: MovieRequest): Promise<ExtendedMovieRequest> {
-  await new Promise(resolve => setTimeout(resolve, 300));
+export async function createMovieRequest(request: MovieRequest): Promise<ExtendedMovieRequest> {
+  const response = await fetch(`${VITE_PUBLIC_API_BASE_URL}/movie-requests`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(request),
+  });
 
-  const newRequest: ExtendedMovieRequest = {
-    ...request,
-    id: `rq-${Date.now()}`,
-    submittedAt: 'Just now',
-    status: 'queued'
-  };
+  if (!response.ok) {
+    throw new Error(`Failed to create movie request: ${response.statusText}`);
+  }
 
-  LOCAL_REQUESTS.unshift(newRequest);
-  return newRequest;
+  return response.json();
 }
 
-export async function updateRequestStatus(
-  requestId: string,
-  status: ExtendedMovieRequest['status']
-): Promise<void> {
-  await new Promise(resolve => setTimeout(resolve, 200));
-  const request = LOCAL_REQUESTS.find(r => r.id === requestId);
-  if (request) {
-    request.status = status;
+export async function deleteMovieRequest(requestId: string): Promise<void> {
+  const response = await fetch(`${VITE_PUBLIC_API_BASE_URL}/movie-requests/${requestId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete movie request: ${response.statusText}`);
   }
 }

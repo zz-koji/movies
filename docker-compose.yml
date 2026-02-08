@@ -52,6 +52,8 @@ services:
       # Exclude node_modules from volume mount
       - /usr/src/app/node_modules
       - ./server/uploads:/usr/src/app/uploads
+    devices:
+      - /dev/dri:/dev/dri
     networks:
       - app_network
     depends_on:

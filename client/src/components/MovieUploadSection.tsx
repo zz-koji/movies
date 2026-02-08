@@ -330,7 +330,7 @@ export function MovieUploadSection({
           return {
             ...item,
             omdbMovie: movie,
-            status: 'pending',
+            status: 'pending' as const,
             progress: null,
             errorMessage: null,
           };
@@ -690,7 +690,7 @@ export function MovieUploadSection({
                 placeholder="Select one or more video files"
                 accept="video/mp4,video/x-m4v,video/*"
                 multiple
-                value={fileInputValue}
+                value={fileInputValue ?? undefined}
                 onChange={handleFilesSelected}
               />
               <Text size="xs" c="dimmed">

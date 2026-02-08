@@ -22,19 +22,21 @@ import { MovieWatchPage } from './MovieWatchPage';
 import { useMovieLibrary } from '../hooks/useMovies';
 import { LoginModal } from './auth/LoginModal';
 import { useAuth } from '../context/AuthContext';
-import { IconInfoCircle, IconLogin } from '@tabler/icons-react';
+import { IconInfoCircle, IconLogin, IconSettings } from '@tabler/icons-react';
 import { MovieUploadSection } from './MovieUploadSection';
 import { deleteMovieFromLibrary } from '../api/movies';
-import { useMovieRequests } from '../hooks/useMovieRequest';
+import { useMovieRequest } from '../hooks/useMovieRequest';
 import { useMovieFilters } from '../hooks/useMovieFilters';
+import { NotificationBell } from './NotificationBell';
+import { AdminDashboard } from './admin/AdminDashboard';
 
 export function MovieDashboard() {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [deletingMovieId, setDeletingMovieId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const loadingRequests = false;
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
 
-  const movieRequests = useMovieRequests();
+  const movieRequests = useMovieRequest();
   const movieFilters = useMovieFilters()
   const auth = useAuth();
 
@@ -78,6 +80,21 @@ export function MovieDashboard() {
     );
   }
 
+  if (showAdminDashboard) {
+    return (
+      <Container size="lg" py="xl">
+        <Stack gap="xl">
+          <Group justify="space-between">
+            <Button variant="subtle" onClick={() => setShowAdminDashboard(false)}>
+              Back to Library
+            </Button>
+          </Group>
+          <AdminDashboard />
+        </Stack>
+      </Container>
+    );
+  }
+
   const resultLabel = `${movieLibrary.movies.length} ${movieLibrary.movies.length === 1 ? 'movie' : 'movies'} found`;
   const showLoadMore = movieLibrary.hasMoreLocalMovies && !movieLibrary.error;
   const showEmptyState = movieLibrary.isLoading && movieLibrary.movies.length === 0 && !movieLibrary.error;
@@ -87,8 +104,10 @@ export function MovieDashboard() {
       <Stack gap="xl">
         <DashboardHeader
           isAuthenticated={Boolean(auth.context.user)}
+          isAdmin={auth.context.isAdmin}
           onLogin={auth.openLoginModal}
           onRequestMovie={movieRequests.modal.openMovieRequestModal}
+          onOpenAdmin={() => setShowAdminDashboard(true)}
         />
 
         <LibraryStats movies={movieLibrary.movies} stats={movieLibrary.stats} />
@@ -167,8 +186,9 @@ export function MovieDashboard() {
         <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xl">
           <RequestQueue
             requests={movieRequests.movieRequests}
-            loading={loadingRequests}
+            loading={movieRequests.isLoading}
             onOpenRequestModal={movieRequests.modal.openMovieRequestModal}
+            onDeleteRequest={movieRequests.handleDeleteRequest}
           />
 
           <MovieUploadSection
@@ -189,6 +209,7 @@ export function MovieDashboard() {
         opened={movieRequests.modal.movieRequestModalOpened}
         onClose={movieRequests.modal.closeMovieRequestModal}
         onSubmit={movieRequests.handleMovieRequest}
+        isSubmitting={movieRequests.isSubmitting}
       />
     </Container>
   );
@@ -196,11 +217,13 @@ export function MovieDashboard() {
 
 interface DashboardHeaderProps {
   isAuthenticated: boolean;
+  isAdmin: boolean;
   onLogin: () => void;
   onRequestMovie: () => void;
+  onOpenAdmin: () => void;
 }
 
-function DashboardHeader({ isAuthenticated, onLogin, onRequestMovie }: DashboardHeaderProps) {
+function DashboardHeader({ isAuthenticated, isAdmin, onLogin, onRequestMovie, onOpenAdmin }: DashboardHeaderProps) {
   return (
     <Paper radius="lg" p={{ base: 'lg', md: 'xl' }}>
       <Group justify="space-between" align="flex-start" wrap="wrap">
@@ -213,12 +236,24 @@ function DashboardHeader({ isAuthenticated, onLogin, onRequestMovie }: Dashboard
           </Text>
         </Stack>
 
-        <Button
-          leftSection={isAuthenticated ? <IconBellPlus size={16} /> : <IconLogin size={16} />}
-          onClick={isAuthenticated ? onRequestMovie : onLogin}
-        >
-          {isAuthenticated ? 'Request Movie' : 'Login'}
-        </Button>
+        <Group gap="sm">
+          {isAuthenticated && <NotificationBell />}
+          {isAdmin && (
+            <Button
+              variant="subtle"
+              leftSection={<IconSettings size={16} />}
+              onClick={onOpenAdmin}
+            >
+              Admin
+            </Button>
+          )}
+          <Button
+            leftSection={isAuthenticated ? <IconBellPlus size={16} /> : <IconLogin size={16} />}
+            onClick={isAuthenticated ? onRequestMovie : onLogin}
+          >
+            {isAuthenticated ? 'Request Movie' : 'Login'}
+          </Button>
+        </Group>
       </Group>
     </Paper>
   );

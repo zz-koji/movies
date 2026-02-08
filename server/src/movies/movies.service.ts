@@ -6,10 +6,13 @@ import { Database } from 'src/database/types';
 import { Kysely } from 'kysely';
 import { unlink } from 'fs/promises';
 import { createReadStream } from 'fs';
+import { extname } from 'path';
 import type { Readable } from 'stream';
 import { FfmpegService } from 'src/ffmpeg/ffmpeg.service';
 import { OmdbApiService } from 'src/omdb-api/omdb-api.service';
 import { MetadataService } from 'src/metadata/metadata.service';
+import { MovieRequestsService } from 'src/movie-requests/movie-requests.service';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 interface MovieStreamResponse {
   status: number;
@@ -36,7 +39,9 @@ export class MoviesService {
     private readonly ffmpegService: FfmpegService,
     private readonly omdbService: OmdbApiService,
     private readonly metadataService: MetadataService,
-    private readonly configService: ConfigService) {
+    private readonly configService: ConfigService,
+    private readonly movieRequestsService: MovieRequestsService,
+    private readonly notificationsService: NotificationsService) {
     this.streamChunkSize = MoviesService.resolveStreamChunkSize(
       this.configService.get('STREAM_CHUNK_SIZE')
     )
@@ -139,11 +144,16 @@ export class MoviesService {
   async uploadMovie(movie: Express.Multer.File, omdbMovieId: string) {
     let uploadCompleted = false;
 
-    const fileName = movie.originalname.toLowerCase();
-    const mimetype = movie.mimetype;
-
     try {
       const fastStartPath = await this.convertMovieToFastStart(movie.path)
+
+      // Derive filename and mimetype from the processed output
+      const outputExt = extname(fastStartPath);
+      const originalName = movie.originalname.toLowerCase();
+      const nameWithoutExt = originalName.replace(/\.[^.]+$/, '');
+      const fileName = `${nameWithoutExt}${outputExt}`;
+      const mimetype = outputExt === '.mp4' ? 'video/mp4' : movie.mimetype;
+
       const processedMovieFile = await this.uploadToMinio(fastStartPath, fileName, mimetype)
       uploadCompleted = true;
 
@@ -155,6 +165,10 @@ export class MoviesService {
         title: omdbMovie.Title,
         omdb_id: omdbMovie.imdbID
       })
+
+      if (recordUpload) {
+        void this.runAutoMatch(recordUpload.id, omdbMovie.imdbID, omdbMovie.Title);
+      }
 
       return { upload: processedMovieFile, movie: recordUpload };
     } catch (error) {
@@ -169,6 +183,26 @@ export class MoviesService {
       } catch (error) {
         console.error(`Error unlinking movie: ${error}`)
       }
+    }
+  }
+
+  private async runAutoMatch(movieId: string, omdbId: string, title: string): Promise<void> {
+    try {
+      const { requestIds } = await this.movieRequestsService.autoMatchAndFulfill(movieId, omdbId, title);
+
+      for (const requestId of requestIds) {
+        const request = await this.movieRequestsService.getByIdWithUser(requestId);
+        if (request) {
+          await this.notificationsService.notifyRequestFulfilled(
+            request.requested_by,
+            request.title ?? title,
+            title,
+            requestId,
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Auto-match after upload failed:', error);
     }
   }
 
