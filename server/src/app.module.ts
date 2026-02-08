@@ -5,8 +5,9 @@ import { DatabaseModule } from './database/database.module';
 import { MovieRequestsModule } from './movie-requests/movie-requests.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
-	imports: [ConfigModule.forRoot({ isGlobal: true }), MoviesModule, DatabaseModule, MovieRequestsModule, UsersModule, AuthModule],
+	imports: [ConfigModule.forRoot({ isGlobal: true }), MoviesModule, DatabaseModule, MovieRequestsModule, UsersModule, AuthModule, UploadsModule],
 })
 export class AppModule { }
