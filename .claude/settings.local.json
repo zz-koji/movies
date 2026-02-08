@@ -7,7 +7,10 @@
       "Bash(DATABASE_URL=postgres://koji:dev_password@localhost:5432/movies?sslmode=disable:*)",
       "Bash(dbmate status:*)",
       "Bash(yarn build)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker-compose restart:*)"
     ]
   }
 }
