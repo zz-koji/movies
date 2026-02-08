@@ -24,6 +24,25 @@ const GENRES = [
   'Thriller'
 ];
 
+const AVAILABILITY_OPTIONS: ReadonlyArray<MovieFiltersProps['availability']> = [
+  'all',
+  'available',
+  'upcoming'
+];
+const SORT_OPTIONS: ReadonlyArray<MovieFiltersProps['sortBy']> = [
+  'featured',
+  'rating',
+  'year'
+];
+
+const isAvailabilityValue = (value: string): value is MovieFiltersProps['availability'] => {
+  return value === 'all' || value === 'available' || value === 'upcoming';
+};
+
+const isSortValue = (value: string): value is MovieFiltersProps['sortBy'] => {
+  return value === 'featured' || value === 'rating' || value === 'year';
+};
+
 export function MovieFilters({
   filters,
   setFilters,
@@ -33,13 +52,41 @@ export function MovieFilters({
   setSortBy,
   onClearFilters
 }: MovieFiltersProps) {
+  const handleAvailabilityChange = (value: string) => {
+    if (isAvailabilityValue(value)) {
+      setAvailability(value);
+      return;
+    }
+    setAvailability('all');
+  };
+
+  const handleSortChange = (value: string | null) => {
+    if (!value) {
+      setSortBy('featured');
+      return;
+    }
+    if (isSortValue(value)) {
+      setSortBy(value);
+      return;
+    }
+    setSortBy('featured');
+  };
+
+  const handleGenreChange = (value: string | null) => {
+    let selectedGenre: string | undefined = undefined;
+    if (value) {
+      selectedGenre = value;
+    }
+    setFilters({ ...filters, genre: selectedGenre });
+  };
+
   return (
     <Grid gutter="md">
       <Grid.Col span={12}>
         <Group justify="space-between" wrap="wrap" gap="sm">
           <SegmentedControl
             value={availability}
-            onChange={(value) => setAvailability(value as 'all' | 'available' | 'upcoming')}
+            onChange={handleAvailabilityChange}
             data={[
               { label: 'All', value: 'all' },
               { label: 'Available', value: 'available' },
@@ -48,14 +95,14 @@ export function MovieFilters({
           />
           <Select
             value={sortBy}
-            onChange={(value) => setSortBy((value as typeof sortBy) ?? 'featured')}
+            onChange={handleSortChange}
             data={[
               { value: 'featured', label: 'Featured' },
               { value: 'rating', label: 'Rating' },
               { value: 'year', label: 'Year' }
             ]}
             leftSection={<IconArrowsSort size={16} />}
-            w={160}
+            w={{ base: '100%', sm: 160 }}
           />
         </Group>
       </Grid.Col>
@@ -71,19 +118,17 @@ export function MovieFilters({
         />
       </Grid.Col>
 
-      <Grid.Col span={{ base: 12, md: 3 }}>
+      <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
         <Select
           placeholder="Genre"
           value={filters.genre}
-          onChange={(value) =>
-            setFilters({ ...filters, genre: value || undefined })
-          }
+          onChange={handleGenreChange}
           data={GENRES}
           clearable
         />
       </Grid.Col>
 
-      <Grid.Col span={{ base: 12, md: 3 }}>
+      <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
         <Button
           variant="light"
           color="gray"

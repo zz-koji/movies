@@ -57,17 +57,70 @@ const getPriorityColor = (priority: ExtendedMovieRequest['priority']) => {
 };
 
 export function RequestQueue({ requests, loading, onOpenRequestModal }: RequestQueueProps) {
+  let queueContent = (
+    <Stack gap="md">
+      {requests.map((request) => (
+        <Paper key={request.id} withBorder p={{ base: 'sm', sm: 'md' }} radius="md">
+          <Stack gap="xs">
+            <Group justify="space-between" align="flex-start" wrap="wrap">
+              <Text fw={600} size="sm">
+                {request.title}
+              </Text>
+              <ThemeIcon
+                size="sm"
+                radius="xl"
+                variant="light"
+                color={getStatusColor(request.status)}
+              >
+                {getStatusIcon(request.status)}
+              </ThemeIcon>
+            </Group>
+
+            <Text size="xs" c="dimmed">
+              Requested by {request.requestedBy} • {request.submittedAt}
+            </Text>
+
+            {request.description && (
+              <Text size="xs" c="dimmed" lineClamp={2}>
+                {request.description}
+              </Text>
+            )}
+
+            <Group gap="xs" wrap="wrap">
+              <Badge color={getStatusColor(request.status)} variant="light" size="xs">
+                {request.status}
+              </Badge>
+              <Badge color={getPriorityColor(request.priority)} variant="light" size="xs">
+                {request.priority} priority
+              </Badge>
+            </Group>
+          </Stack>
+        </Paper>
+      ))}
+    </Stack>
+  );
+
+  if (loading) {
+    queueContent = (
+      <Stack gap="sm">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Skeleton key={index} height={80} radius="md" />
+        ))}
+      </Stack>
+    );
+  }
+
   return (
-    <Paper withBorder radius="lg" p="lg">
+    <Paper withBorder radius="lg" p={{ base: 'md', sm: 'lg' }}>
       <Stack gap="md">
-        <Group justify="space-between" align="flex-start">
+        <Group justify="space-between" align="flex-start" wrap="wrap">
           <div>
             <Text size="sm" c="dimmed" tt="uppercase" fw={600}>
               Request Queue
             </Text>
             <Title order={4}>Movie Requests</Title>
           </div>
-          <Badge color="cyan" variant="light">
+          <Badge color="cyan" variant="light" size="lg">
             {requests.length}
           </Badge>
         </Group>
@@ -76,54 +129,7 @@ export function RequestQueue({ requests, loading, onOpenRequestModal }: RequestQ
           Family movie requests are tracked here until they're added to the library.
         </Text>
 
-        {loading ? (
-          <Stack gap="sm">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton key={index} height={80} radius="md" />
-            ))}
-          </Stack>
-        ) : (
-          <Stack gap="md">
-            {requests.map((request) => (
-              <Paper key={request.id} withBorder p="md" radius="md">
-                <Stack gap="xs">
-                  <Group justify="space-between" align="flex-start">
-                    <Text fw={600} size="sm">
-                      {request.title}
-                    </Text>
-                    <ThemeIcon
-                      size="sm"
-                      radius="xl"
-                      variant="light"
-                      color={getStatusColor(request.status)}
-                    >
-                      {getStatusIcon(request.status)}
-                    </ThemeIcon>
-                  </Group>
-
-                  <Text size="xs" c="dimmed">
-                    Requested by {request.requestedBy} • {request.submittedAt}
-                  </Text>
-
-                  {request.description && (
-                    <Text size="xs" c="dimmed" lineClamp={2}>
-                      {request.description}
-                    </Text>
-                  )}
-
-                  <Group gap="xs">
-                    <Badge color={getStatusColor(request.status)} variant="light" size="xs">
-                      {request.status}
-                    </Badge>
-                    <Badge color={getPriorityColor(request.priority)} variant="light" size="xs">
-                      {request.priority} priority
-                    </Badge>
-                  </Group>
-                </Stack>
-              </Paper>
-            ))}
-          </Stack>
-        )}
+        {queueContent}
 
         <Button
           variant="light"

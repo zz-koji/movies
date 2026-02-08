@@ -4,6 +4,7 @@ import {
   Group,
   Modal,
   Select,
+  SimpleGrid,
   Stack,
   Text,
   TextInput,
@@ -20,23 +21,39 @@ interface MovieRequestFormProps {
   onSubmit: (request: MovieRequest) => void;
 }
 
+interface MovieRequestFormValues {
+  title: string;
+  year: string;
+  description: string;
+  requestedBy: string;
+  priority: 'low' | 'medium' | 'high';
+}
+
 export function MovieRequestForm({ opened, onClose, onSubmit }: MovieRequestFormProps) {
-  const form = useForm({
+  const form = useForm<MovieRequestFormValues>({
     initialValues: {
       title: '',
       year: '',
       description: '',
       requestedBy: '',
-      priority: 'medium' as 'low' | 'medium' | 'high'
+      priority: 'medium'
     },
     validate: zodResolver(movieRequestSchema)
   });
 
   const handleSubmit = form.onSubmit((values) => {
+    let parsedYear: number | undefined = undefined;
+    if (values.year) {
+      parsedYear = parseInt(values.year, 10);
+    }
+    let description: string | undefined = undefined;
+    if (values.description.trim().length > 0) {
+      description = values.description.trim();
+    }
     const request: MovieRequest = {
       title: values.title.trim(),
-      year: values.year ? parseInt(values.year, 10) : undefined,
-      description: values.description?.trim() || undefined,
+      year: parsedYear,
+      description,
       requestedBy: values.requestedBy.trim(),
       priority: values.priority
     };
@@ -63,7 +80,7 @@ export function MovieRequestForm({ opened, onClose, onSubmit }: MovieRequestForm
             {...form.getInputProps('title')}
           />
 
-          <Group grow>
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
             <TextInput
               label="Release year"
               placeholder="e.g. 2024"
@@ -79,7 +96,7 @@ export function MovieRequestForm({ opened, onClose, onSubmit }: MovieRequestForm
               ]}
               {...form.getInputProps('priority')}
             />
-          </Group>
+          </SimpleGrid>
 
           <Textarea
             label="Why should we add this?"
@@ -100,7 +117,7 @@ export function MovieRequestForm({ opened, onClose, onSubmit }: MovieRequestForm
 
           <Divider my="sm" />
 
-          <Group justify="flex-end">
+          <Group justify="flex-end" wrap="wrap">
             <Button variant="subtle" color="gray" onClick={onClose}>
               Cancel
             </Button>
