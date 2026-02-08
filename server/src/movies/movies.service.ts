@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { GetMovieDto, GetLocalMoviesDto, omdbMovieSchema, GetMoviesDto, LocalMovie, OmdbMovie } from './types'
 import { Client as MinioClient } from 'minio'
 import { Database } from 'src/database/types';
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import { unlink } from 'fs/promises';
 import { createReadStream } from 'fs';
 import { extname } from 'path';
@@ -563,10 +563,105 @@ export class MoviesService {
     return { moviesQuery, totalQuery, subTotalQuery, comingSoonQuery }
   }
 
+  private buildUnfulfilledRequestsQuery(query: GetLocalMoviesDto = {}) {
+    const { genreFilter, minRatingFilter, offset, pagination: { limit }, searchPattern, yearFilter, sortBy } = MoviesService.resolveQuery(query)
+
+    let requestsQuery = this.db
+      .selectFrom('movie_requests as mr')
+      .leftJoin('movie_metadata as mm', 'mr.omdb_id', 'mm.omdb_id')
+      .where('mr.fulfilled_movie_id', 'is', null)
+      .select([
+        'mr.id',
+        'mr.omdb_id',
+        'mr.title',
+        sql<string | null>`NULL`.as('movie_file_key'),
+        sql<string | null>`NULL`.as('subtitle_file_key'),
+        sql<string>`''`.as('description'),
+        'mm.data as cached_metadata',
+      ])
+
+    let countQuery = this.db
+      .selectFrom('movie_requests as mr')
+      .leftJoin('movie_metadata as mm', 'mr.omdb_id', 'mm.omdb_id')
+      .where('mr.fulfilled_movie_id', 'is', null)
+
+    if (searchPattern) {
+      requestsQuery = requestsQuery.where((eb) =>
+        eb.or([
+          eb('mr.title', 'ilike', searchPattern),
+          eb('mm.title', 'ilike', searchPattern),
+          eb('mm.genre', 'ilike', searchPattern),
+          eb('mm.director', 'ilike', searchPattern),
+          eb('mm.actors', 'ilike', searchPattern),
+        ]),
+      )
+
+      countQuery = countQuery.where((eb) =>
+        eb.or([
+          eb('mr.title', 'ilike', searchPattern),
+          eb('mm.title', 'ilike', searchPattern),
+          eb('mm.genre', 'ilike', searchPattern),
+          eb('mm.director', 'ilike', searchPattern),
+          eb('mm.actors', 'ilike', searchPattern),
+        ]),
+      )
+    }
+
+    if (genreFilter) {
+      const genrePattern = MoviesService.buildSearchPattern(genreFilter)
+      requestsQuery = requestsQuery.where('mm.genre', 'ilike', genrePattern)
+      countQuery = countQuery.where('mm.genre', 'ilike', genrePattern)
+    }
+
+    if (yearFilter !== null) {
+      requestsQuery = requestsQuery.where('mm.year', '=', yearFilter)
+      countQuery = countQuery.where('mm.year', '=', yearFilter)
+    }
+
+    if (minRatingFilter !== null) {
+      requestsQuery = requestsQuery.where('mm.imdb_rating', '>=', minRatingFilter)
+      countQuery = countQuery.where('mm.imdb_rating', '>=', minRatingFilter)
+    }
+
+    if (sortBy === 'rating') {
+      requestsQuery = requestsQuery
+        .orderBy('mm.imdb_rating', 'desc')
+        .orderBy('mm.title', 'asc')
+        .orderBy('mr.title', 'asc')
+    } else if (sortBy === 'year') {
+      requestsQuery = requestsQuery
+        .orderBy('mm.year', 'desc')
+        .orderBy('mm.title', 'asc')
+        .orderBy('mr.title', 'asc')
+    } else {
+      requestsQuery = requestsQuery
+        .orderBy('mm.title', 'asc')
+        .orderBy('mr.title', 'asc')
+    }
+
+    requestsQuery = requestsQuery.offset(offset).limit(limit)
+
+    return { requestsQuery, countQuery }
+  }
+
   async getLocalMovies(query: GetLocalMoviesDto = {}) {
+    const { availabilityFilter } = MoviesService.resolveQuery(query)
+
+    // Handle different availability filters
+    if (availabilityFilter === false) {
+      // Return only unfulfilled requests (Coming Soon)
+      return this.getUnfulfilledRequests(query)
+    } else if (availabilityFilter === true) {
+      // Return only available movies (current behavior)
+      return this.getAvailableMovies(query)
+    } else {
+      // Return both available movies and unfulfilled requests (All)
+      return this.getAllMoviesAndRequests(query)
+    }
+  }
+
+  private async getAvailableMovies(query: GetLocalMoviesDto = {}) {
     const { moviesQuery, totalQuery, subTotalQuery, comingSoonQuery } = this.buildLocalMoviesQuery(query)
-
-
 
     const [moviesWithMetadata, totalResult, subTotalResult, comingSoonResult] = await Promise.all([
       moviesQuery.execute(),
@@ -578,11 +673,9 @@ export class MoviesService {
         .select(({ fn }) => fn.count<number>('id').as('count'))
         .executeTakeFirst(),
       comingSoonQuery
-        .select(({ fn }) => fn.count<number>('id').as('count')).where('date_completed', 'is not', null)
+        .select(({ fn }) => fn.count<number>('id').as('count')).where('fulfilled_movie_id', 'is', null)
         .executeTakeFirst()
     ])
-
-
 
     const total = totalResult?.count ? Number(totalResult.count) : 0
     const subTotal = subTotalResult?.count ? Number(subTotalResult.count) : 0
@@ -612,6 +705,160 @@ export class MoviesService {
       data: MoviesService.sortMovie(enrichedMovies, query.sortBy),
       pagination: {
         subTotal,
+        comingSoon,
+        page,
+        limit,
+        total,
+        totalRuntime,
+        totalPages,
+        hasNextPage,
+      },
+    }
+  }
+
+  private async getUnfulfilledRequests(query: GetLocalMoviesDto = {}) {
+    const { requestsQuery, countQuery } = this.buildUnfulfilledRequestsQuery(query)
+
+    const [requestsWithMetadata, countResult] = await Promise.all([
+      requestsQuery.execute(),
+      countQuery
+        .select(({ fn }) => fn.count<number>('id').as('count'))
+        .executeTakeFirst(),
+    ])
+
+    const total = countResult?.count ? Number(countResult.count) : 0
+    const limit = query?.limit ? Number(query.limit) : 0
+    const page = query?.page ? Number(query.page) : 0
+
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0
+    const hasNextPage = page < totalPages
+
+    const enrichedMovies: Array<LocalMovie & { metadata: OmdbMovie | null }> = []
+
+    for (const request of requestsWithMetadata) {
+      const { cached_metadata, ...movieData } = request
+      let metadata: OmdbMovie | null = cached_metadata
+
+      if (!metadata && movieData.omdb_id) {
+        metadata = await this.getMovie({ id: movieData.omdb_id })
+      }
+
+      enrichedMovies.push({
+        id: movieData.id,
+        omdb_id: movieData.omdb_id || '',
+        title: movieData.title || '',
+        description: movieData.description || '',
+        movie_file_key: movieData.movie_file_key as any,
+        subtitle_file_key: movieData.subtitle_file_key as any,
+        metadata,
+      })
+    }
+
+    // Get overall stats for pagination
+    const [totalAvailable, totalRequests] = await Promise.all([
+      this.db
+        .selectFrom('local_movies')
+        .leftJoin('movie_metadata as mm', 'mm.omdb_id', 'local_movies.omdb_id')
+        .select(({ fn }) => fn.count<number>('local_movies.id').as('count'))
+        .select(({ fn }) => fn.sum<number>('mm.runtime').as('runtime'))
+        .executeTakeFirst(),
+      this.db
+        .selectFrom('movie_requests')
+        .where('fulfilled_movie_id', 'is', null)
+        .select(({ fn }) => fn.count<number>('id').as('count'))
+        .executeTakeFirst(),
+    ])
+
+    return {
+      data: MoviesService.sortMovie(enrichedMovies, query.sortBy),
+      pagination: {
+        subTotal: total,
+        comingSoon: total,
+        page,
+        limit,
+        total,
+        totalRuntime: totalAvailable?.runtime ? Number(totalAvailable.runtime) : 0,
+        totalPages,
+        hasNextPage,
+      },
+    }
+  }
+
+  private async getAllMoviesAndRequests(query: GetLocalMoviesDto = {}) {
+    const { pagination: { limit, page }, offset } = MoviesService.resolveQuery(query)
+
+    // Get both available movies and unfulfilled requests
+    const { moviesQuery: availableQuery, totalQuery, comingSoonQuery } = this.buildLocalMoviesQuery(query)
+    const { requestsQuery: requestsQuery } = this.buildUnfulfilledRequestsQuery(query)
+
+    // Remove limit/offset from individual queries - we'll apply it after merging
+    const availableQueryNoLimit = availableQuery.clearLimit().clearOffset()
+    const requestsQueryNoLimit = requestsQuery.clearLimit().clearOffset()
+
+    const [availableMovies, unfulfilledRequests, totalResult, comingSoonResult] = await Promise.all([
+      availableQueryNoLimit.execute(),
+      requestsQueryNoLimit.execute(),
+      totalQuery
+        .select(({ fn }) => fn.count<number>('id').as('count'))
+        .select(({ fn }) => fn.sum<number>('mm.runtime').as('runtime'))
+        .executeTakeFirst(),
+      comingSoonQuery
+        .select(({ fn }) => fn.count<number>('id').as('count'))
+        .where('fulfilled_movie_id', 'is', null)
+        .executeTakeFirst(),
+    ])
+
+    // Merge and enrich all results
+    const allMovies: Array<LocalMovie & { metadata: OmdbMovie | null }> = []
+
+    for (const movie of availableMovies) {
+      const { cached_metadata, ...localMovie } = movie
+      let metadata: OmdbMovie | null = cached_metadata
+
+      if (!metadata && localMovie.omdb_id) {
+        metadata = await this.getMovie({ id: localMovie.omdb_id })
+      }
+
+      allMovies.push({ ...localMovie, metadata })
+    }
+
+    for (const request of unfulfilledRequests) {
+      const { cached_metadata, ...movieData } = request
+      let metadata: OmdbMovie | null = cached_metadata
+
+      if (!metadata && movieData.omdb_id) {
+        metadata = await this.getMovie({ id: movieData.omdb_id })
+      }
+
+      allMovies.push({
+        id: movieData.id,
+        omdb_id: movieData.omdb_id || '',
+        title: movieData.title || '',
+        description: movieData.description || '',
+        movie_file_key: movieData.movie_file_key as any,
+        subtitle_file_key: movieData.subtitle_file_key as any,
+        metadata,
+      })
+    }
+
+    // Sort all movies
+    const sortedMovies = MoviesService.sortMovie(allMovies, query.sortBy)
+
+    // Apply pagination
+    const paginatedMovies = sortedMovies.slice(offset, offset + limit)
+
+    const totalAvailable = totalResult?.count ? Number(totalResult.count) : 0
+    const comingSoon = comingSoonResult?.count ? Number(comingSoonResult.count) : 0
+    const total = totalAvailable + comingSoon
+    const totalRuntime = totalResult?.runtime ? Number(totalResult.runtime) : 0
+
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0
+    const hasNextPage = page < totalPages
+
+    return {
+      data: paginatedMovies,
+      pagination: {
+        subTotal: total,
         comingSoon,
         page,
         limit,
