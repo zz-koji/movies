@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Container,
@@ -52,9 +52,16 @@ export function MovieDashboard() {
   const [loginModalOpened, { open: openLoginModal, close: closeLoginModal }] = useDisclosure(false)
 
   useEffect(() => {
+    let availabilityFilter: boolean | undefined = undefined;
+    if (availability === 'available') {
+      availabilityFilter = true;
+    }
+    if (availability === 'upcoming') {
+      availabilityFilter = false;
+    }
     setFilters((prev) => ({
       ...prev,
-      available: availability === 'all' ? undefined : availability === 'available'
+      available: availabilityFilter
     }));
   }, [availability]);
 
@@ -91,14 +98,85 @@ export function MovieDashboard() {
   };
 
   const clearFilters = () => {
+    let availabilityFilter: boolean | undefined = undefined;
+    if (availability === 'available') {
+      availabilityFilter = true;
+    }
+    if (availability === 'upcoming') {
+      availabilityFilter = false;
+    }
     setFilters({
       query: '',
       genre: undefined,
       year: undefined,
       rating: undefined,
-      available: availability === 'all' ? undefined : availability === 'available'
+      available: availabilityFilter
     });
   };
+
+  const movieCountLabel = useMemo(() => {
+    if (movies.length === 1) {
+      return 'movie';
+    }
+    return 'movies';
+  }, [movies.length]);
+
+  const searchErrorMessage = useMemo(() => {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return 'Failed to search movies. Please try again.';
+  }, [error]);
+
+  const emptySearchMessage = useMemo(() => {
+    if (debouncedQuery && debouncedQuery.length >= 2) {
+      return 'No movies found for your search. Try a different title.';
+    }
+    return 'Try adjusting your search filters.';
+  }, [debouncedQuery]);
+
+  let actionButton = (
+    <Button
+      leftSection={<IconLogin size={16} />}
+      onClick={openLoginModal}
+      fullWidth
+    >
+      Login
+    </Button>
+  );
+  if (user) {
+    actionButton = (
+      <Button
+        leftSection={<IconBellPlus size={16} />}
+        onClick={openRequestModal}
+        fullWidth
+      >
+        Request Movie
+      </Button>
+    );
+  }
+
+  let movieGridContent = (
+    <Grid gutter="lg">
+      {movies.map((movie) => (
+        <Grid.Col key={movie.id} span={{ base: 12, sm: 6, md: 4 }}>
+          <MovieCard movie={movie} onWatchClick={handleWatchMovie} />
+        </Grid.Col>
+      ))}
+    </Grid>
+  );
+
+  if (loadingLibrary) {
+    movieGridContent = (
+      <Grid gutter="lg">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <Grid.Col key={index} span={{ base: 12, sm: 6, md: 4 }}>
+            <Skeleton height={360} radius="lg" />
+          </Grid.Col>
+        ))}
+      </Grid>
+    );
+  }
 
   if (selectedMovie) {
     return (
@@ -123,22 +201,9 @@ export function MovieDashboard() {
                   Stream your collection and request new movies for the household.
                 </Text>
               </Stack>
-              {user ? <Button
-                leftSection={<IconBellPlus size={16} />}
-                onClick={openRequestModal}
-              >
-                Request Movie
-              </Button>
-                :
-
-                <Button
-                  leftSection={<IconLogin size={16} />}
-                  onClick={openLoginModal}
-                >
-                  Login
-                </Button>
-
-              }
+              <Group w={{ base: '100%', sm: 'auto' }} justify="flex-end">
+                {actionButton}
+              </Group>
             </Group>
           </Stack>
         </Paper>
@@ -171,33 +236,17 @@ export function MovieDashboard() {
                 />
 
                 <Text size="sm" c="dimmed">
-                  {movies.length} {movies.length === 1 ? 'movie' : 'movies'} found
+                  {movies.length} {movieCountLabel} found
                 </Text>
 
-                {(loadingLibrary) ? (
-                  <Grid gutter="lg">
-                    {Array.from({ length: 6 }).map((_, index) => (
-                      <Grid.Col key={index} span={{ base: 12, sm: 6, md: 4 }}>
-                        <Skeleton height={360} radius="lg" />
-                      </Grid.Col>
-                    ))}
-                  </Grid>
-                ) : (
-                  <Grid gutter="lg">
-                    {movies.map((movie) => (
-                      <Grid.Col key={movie.id} span={{ base: 12, sm: 6, md: 4 }}>
-                        <MovieCard movie={movie} onWatchClick={handleWatchMovie} />
-                      </Grid.Col>
-                    ))}
-                  </Grid>
-                )}
+                {movieGridContent}
 
                 {error && (
                   <Paper radius="lg" withBorder p="xl" ta="center">
                     <Stack gap="sm">
                       <Text fw={600} c="red">Search Error</Text>
                       <Text size="sm" c="dimmed">
-                        {error instanceof Error ? error.message : 'Failed to search movies. Please try again.'}
+                        {searchErrorMessage}
                       </Text>
                     </Stack>
                   </Paper>
@@ -208,10 +257,7 @@ export function MovieDashboard() {
                     <Stack gap="sm">
                       <Text fw={600}>No movies found</Text>
                       <Text size="sm" c="dimmed">
-                        {debouncedQuery && debouncedQuery.length >= 2
-                          ? 'No movies found for your search. Try a different title.'
-                          : 'Try adjusting your search filters.'
-                        }
+                        {emptySearchMessage}
                       </Text>
                     </Stack>
                   </Paper>
