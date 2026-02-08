@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { getMovieRequests } from '../api/requests';
 
 interface RequestedMoviesContextType {
   requestedMovieIds: Set<string>;
@@ -38,6 +39,27 @@ export function RequestedMoviesProvider({ children }: { children: ReactNode }) {
   const [requestedMovieIds, setRequestedMovieIds] = useState<Set<string>>(
     () => loadRequestedMoviesFromStorage()
   );
+
+  // Sync with server on mount
+  useEffect(() => {
+    async function syncWithServer() {
+      try {
+        const requests = await getMovieRequests();
+        const requestedIds = new Set(
+          requests
+            .filter((req) => req.status !== 'completed')
+            .map((req) => req.omdb_id)
+            .filter((id): id is string => Boolean(id))
+        );
+        setRequestedMovieIds(requestedIds);
+      } catch (error) {
+        // Silent fail - use localStorage data
+        console.error('Failed to sync requested movies with server:', error);
+      }
+    }
+
+    void syncWithServer();
+  }, []);
 
   useEffect(() => {
     saveRequestedMoviesToStorage(requestedMovieIds);
