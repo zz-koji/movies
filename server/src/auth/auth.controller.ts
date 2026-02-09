@@ -16,6 +16,14 @@ import { AuthGuard } from './auth.guard';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Post('register')
+  async register(
+    @Body() body: PinLogin,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return await this.authService.register(body, response);
+  }
+
   @Post('login')
   async authenticateUser(
     @Body() body: PinLogin,
@@ -28,5 +36,11 @@ export class AuthController {
   @Get('whoami')
   async whoami(@Req() request: Request) {
     return request.user;
+  }
+
+  @Post('logout')
+  async logout(@Res({ passthrough: true }) response: Response) {
+    response.clearCookie('accessToken');
+    return { message: 'Logged out successfully' };
   }
 }

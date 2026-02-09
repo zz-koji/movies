@@ -1,6 +1,7 @@
 import { BadRequestException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config'
 import { GetMovieDto, GetLocalMoviesDto, omdbMovieSchema, GetMoviesDto, LocalMovie, OmdbMovie } from './types'
+import { GetCatalogDto } from './types/dto/get-catalog.dto';
 import { Client as MinioClient } from 'minio'
 import { Database } from 'src/database/types';
 import { Kysely, sql } from 'kysely';
@@ -141,12 +142,18 @@ export class MoviesService {
     return result
   }
 
-  async uploadMovie(movie: Express.Multer.File, omdbMovieId: string) {
+  async uploadMovie(
+    movie: Express.Multer.File,
+    omdbMovieId: string,
+    subtitleFile?: Express.Multer.File,
+  ) {
     let uploadCompleted = false;
     let fileName: string | undefined;
+    let subtitleFileName: string | undefined;
+    let subtitlePath: string | null = null;
 
     try {
-      const fastStartPath = await this.convertMovieToFastStart(movie.path)
+      const fastStartPath = await this.convertMovieToFastStart(movie.path);
 
       // Derive filename and mimetype from the processed output
       const outputExt = extname(fastStartPath);
@@ -155,44 +162,97 @@ export class MoviesService {
       fileName = `${nameWithoutExt}${outputExt}`;
       const mimetype = outputExt === '.mp4' ? 'video/mp4' : movie.mimetype;
 
-      const processedMovieFile = await this.uploadToMinio(fastStartPath, fileName, mimetype)
+      // Process subtitle (upload or extract)
+      subtitlePath = await this.processSubtitle(
+        fastStartPath,
+        subtitleFile,
+        nameWithoutExt,
+      );
+
+      const processedMovieFile = await this.uploadToMinio(
+        fastStartPath,
+        fileName,
+        mimetype,
+      );
       uploadCompleted = true;
 
-      const omdbMovie = await this.getMovie({ id: omdbMovieId })
+      // Upload subtitle if available
+      if (subtitlePath) {
+        subtitleFileName = `${nameWithoutExt}.srt`;
+        await this.uploadToMinio(subtitlePath, subtitleFileName, 'text/plain; charset=utf-8');
+      }
+
+      const omdbMovie = await this.getMovie({ id: omdbMovieId });
 
       const recordUpload = await this.insertMovieRecord({
         description: omdbMovie.Plot,
         movie_file_key: fileName,
+        subtitle_file_key: subtitleFileName,
         title: omdbMovie.Title,
-        omdb_id: omdbMovie.imdbID
-      })
+        omdb_id: omdbMovie.imdbID,
+      });
 
       if (recordUpload) {
-        void this.runAutoMatch(recordUpload.id, omdbMovie.imdbID, omdbMovie.Title);
+        void this.runAutoMatch(
+          recordUpload.id,
+          omdbMovie.imdbID,
+          omdbMovie.Title,
+        );
       }
 
       return { upload: processedMovieFile, movie: recordUpload };
     } catch (error) {
       if (uploadCompleted && fileName) {
-        await this.minioClient.removeObject(this.bucket, fileName)
+        await this.minioClient.removeObject(this.bucket, fileName);
       }
-      throw new BadRequestException(`Upload failed: ${error instanceof Error ? error.message : error}`);
-
+      if (subtitleFileName) {
+        await this.minioClient
+          .removeObject(this.bucket, subtitleFileName)
+          .catch(() => undefined);
+      }
+      throw new BadRequestException(
+        `Upload failed: ${error instanceof Error ? error.message : error}`,
+      );
     } finally {
       try {
-        await unlink(movie.path)
+        await unlink(movie.path);
       } catch (error) {
-        console.error(`Error unlinking movie: ${error}`)
+        console.error(`Error unlinking movie: ${error}`);
+      }
+      if (subtitleFile?.path) {
+        try {
+          await unlink(subtitleFile.path);
+        } catch (error) {
+          console.error(`Error unlinking subtitle: ${error}`);
+        }
+      }
+      // Clean up extracted subtitle file if it exists and is different from uploaded subtitle
+      if (subtitlePath && subtitlePath !== subtitleFile?.path) {
+        try {
+          await unlink(subtitlePath);
+        } catch (error) {
+          console.error(`Error unlinking extracted subtitle: ${error}`);
+        }
       }
     }
   }
 
-  private async runAutoMatch(movieId: string, omdbId: string, title: string): Promise<void> {
+  private async runAutoMatch(
+    movieId: string,
+    omdbId: string,
+    title: string,
+  ): Promise<void> {
     try {
-      const { requestIds } = await this.movieRequestsService.autoMatchAndFulfill(movieId, omdbId, title);
+      const { requestIds } =
+        await this.movieRequestsService.autoMatchAndFulfill(
+          movieId,
+          omdbId,
+          title,
+        );
 
       for (const requestId of requestIds) {
-        const request = await this.movieRequestsService.getByIdWithUser(requestId);
+        const request =
+          await this.movieRequestsService.getByIdWithUser(requestId);
         if (request) {
           await this.notificationsService.notifyRequestFulfilled(
             request.requested_by,
@@ -207,14 +267,139 @@ export class MoviesService {
     }
   }
 
-  private async insertMovieRecord(data: Pick<LocalMovie, 'description' | 'movie_file_key' | 'title' | 'omdb_id'>) {
-    const recordUpload = await this
-      .db.insertInto('local_movies')
+  private async processSubtitle(
+    videoPath: string,
+    uploadedSubtitle: Express.Multer.File | undefined,
+    baseFileName: string,
+  ): Promise<string | null> {
+    try {
+      // If subtitle file was uploaded, use it
+      if (uploadedSubtitle) {
+        console.log('Using uploaded subtitle file');
+        return uploadedSubtitle.path;
+      }
+
+      // Try to extract subtitle from video
+      console.log('Attempting to extract subtitle from video');
+      const streams = await this.ffmpegService.probeSubtitleStreams(videoPath);
+
+      if (streams.length === 0) {
+        console.log('No subtitle streams found in video');
+        return null;
+      }
+
+      // Prefer English subtitles, otherwise use first available
+      let selectedStream = streams.find(
+        (s) => s.language?.toLowerCase() === 'eng' || s.language?.toLowerCase() === 'en',
+      );
+
+      if (!selectedStream) {
+        selectedStream = streams[0];
+      }
+
+      console.log(
+        `Extracting subtitle stream ${selectedStream.index} (${selectedStream.codecName}, ${selectedStream.language || 'unknown'})`,
+      );
+
+      const outputPath = `${videoPath}.extracted.srt`;
+      await this.ffmpegService.extractSubtitleToSrt(
+        videoPath,
+        selectedStream.index,
+        outputPath,
+      );
+
+      return outputPath;
+    } catch (error) {
+      console.error(
+        'Subtitle processing failed (non-blocking):',
+        error instanceof Error ? error.message : error,
+      );
+      return null;
+    }
+  }
+
+  async uploadSubtitleToMovie(
+    omdbId: string,
+    subtitleFile: Express.Multer.File,
+  ): Promise<LocalMovie> {
+    try {
+      // Get movie record
+      const movie = await this.db
+        .selectFrom('local_movies')
+        .where('omdb_id', '=', omdbId)
+        .selectAll()
+        .executeTakeFirstOrThrow(
+          () => new NotFoundException('Movie not found'),
+        );
+
+      // Generate subtitle filename based on video filename
+      const videoBaseName = movie.movie_file_key.replace(/\.[^.]+$/, '');
+      const subtitleFileName = `${videoBaseName}.srt`;
+
+      // Upload to MinIO
+      await this.uploadToMinio(
+        subtitleFile.path,
+        subtitleFileName,
+        'text/plain; charset=utf-8',
+      );
+
+      // Delete old subtitle if exists
+      if (movie.subtitle_file_key) {
+        await this.minioClient
+          .removeObject(this.bucket, movie.subtitle_file_key)
+          .catch(() => undefined);
+      }
+
+      // Update database
+      const updatedMovie = await this.db
+        .updateTable('local_movies')
+        .set({ subtitle_file_key: subtitleFileName })
+        .where('omdb_id', '=', omdbId)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      return updatedMovie;
+    } finally {
+      try {
+        await unlink(subtitleFile.path);
+      } catch (error) {
+        console.error(`Error unlinking subtitle file: ${error}`);
+      }
+    }
+  }
+
+  async streamSubtitle(omdbId: string): Promise<Readable> {
+    const movie = await this.db
+      .selectFrom('local_movies')
+      .where('omdb_id', '=', omdbId)
+      .select('subtitle_file_key')
+      .executeTakeFirstOrThrow(
+        () => new NotFoundException('Movie not found'),
+      );
+
+    if (!movie.subtitle_file_key) {
+      throw new NotFoundException('No subtitle available for this movie');
+    }
+
+    return await this.minioClient.getObject(
+      this.bucket,
+      movie.subtitle_file_key,
+    );
+  }
+
+  private async insertMovieRecord(
+    data: Pick<
+      LocalMovie,
+      'description' | 'movie_file_key' | 'title' | 'omdb_id' | 'subtitle_file_key'
+    >,
+  ) {
+    const recordUpload = await this.db
+      .insertInto('local_movies')
       .values(data)
       .returningAll()
       .executeTakeFirst();
 
-    return recordUpload
+    return recordUpload;
   }
 
   private async getMovieFileKey(omdbMovieId: string) {
@@ -885,5 +1070,82 @@ export class MoviesService {
     ])
 
     return deleteRecord
+  }
+
+  async getMovieCatalog(params: GetCatalogDto) {
+    const page = params.page && params.page > 0 ? params.page : 1
+    const limit = params.limit && params.limit > 0 ? Math.min(params.limit, 50) : 10
+
+    // If no query, return empty state
+    if (!params.query || params.query.trim() === '') {
+      return {
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasNextPage: false,
+        },
+      }
+    }
+
+    // Search OMDB
+    const omdbResults = await this.omdbService.getMovies({
+      title: params.query,
+      page,
+    })
+
+    // Enrich with availability status
+    const enrichedMovies = await this.enrichWithAvailability(omdbResults.Search || [])
+
+    const total = omdbResults.totalResults ? parseInt(omdbResults.totalResults, 10) : 0
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0
+    const hasNextPage = page < totalPages
+
+    return {
+      data: enrichedMovies,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage,
+      },
+    }
+  }
+
+  private async enrichWithAvailability(omdbMovies: any[]) {
+    if (omdbMovies.length === 0) {
+      return []
+    }
+
+    const omdbIds = omdbMovies.map((m) => m.imdbID).filter(Boolean)
+
+    // Batch query: check which movies are available
+    const availableMovies = await this.db
+      .selectFrom('local_movies')
+      .where('omdb_id', 'in', omdbIds)
+      .select('omdb_id')
+      .execute()
+
+    const availableSet = new Set(availableMovies.map((m) => m.omdb_id))
+
+    // Batch query: check which movies are requested (unfulfilled)
+    const requestedMovies = await this.db
+      .selectFrom('movie_requests')
+      .where('omdb_id', 'in', omdbIds)
+      .where('fulfilled_movie_id', 'is', null)
+      .select('omdb_id')
+      .execute()
+
+    const requestedSet = new Set(requestedMovies.map((m) => m.omdb_id))
+
+    // Enrich each movie with status flags
+    return omdbMovies.map((movie) => ({
+      ...movie,
+      available: availableSet.has(movie.imdbID),
+      requested: requestedSet.has(movie.imdbID),
+    }))
   }
 }

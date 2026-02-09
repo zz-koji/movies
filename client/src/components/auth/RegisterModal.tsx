@@ -5,14 +5,14 @@ import { IconAlertCircle, IconUser } from '@tabler/icons-react';
 import { useState } from 'react';
 import { loginSchema, type LoginCredentials } from '../../types';
 
-interface LoginModalProps {
+interface RegisterModalProps {
   opened: boolean;
   onClose: () => void;
   onSubmit: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
-  onSwitchToRegister?: () => void;
+  onSwitchToLogin: () => void;
 }
 
-export function LoginModal({ opened, onClose, onSubmit, onSwitchToRegister }: LoginModalProps) {
+export function RegisterModal({ opened, onClose, onSubmit, onSwitchToLogin }: RegisterModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +33,7 @@ export function LoginModal({ opened, onClose, onSubmit, onSwitchToRegister }: Lo
     if (result.success) {
       form.reset();
     } else {
-      setError(result.error || 'Login failed');
+      setError(result.error || 'Registration failed');
     }
   });
 
@@ -44,11 +44,11 @@ export function LoginModal({ opened, onClose, onSubmit, onSwitchToRegister }: Lo
   };
 
   return (
-    <Modal opened={opened} onClose={handleClose} title="Login" centered radius="lg" size="md">
+    <Modal opened={opened} onClose={handleClose} title="Register" centered radius="lg" size="md">
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            Enter your credentials to access the application.
+            Create a new account to access the application.
           </Text>
           {error && (
             <Alert icon={<IconAlertCircle size={16} />} color="red" variant="light">
@@ -58,28 +58,29 @@ export function LoginModal({ opened, onClose, onSubmit, onSwitchToRegister }: Lo
           <Stack gap="sm">
             <TextInput
               label="Username"
-              placeholder="Enter your username"
+              placeholder="Choose a username"
               required
               disabled={isSubmitting}
               leftSection={<IconUser size={16} />}
               {...form.getInputProps('name')}
             />
             <Stack gap={4}>
-              <InputLabel htmlFor="login-pin">PIN</InputLabel>
-              <PinInput id="login-pin" length={6} disabled={isSubmitting} {...form.getInputProps('pin')} />
+              <InputLabel htmlFor="register-pin">PIN (6 digits)</InputLabel>
+              <PinInput id="register-pin" length={6} disabled={isSubmitting} {...form.getInputProps('pin')} />
+              <Text size="xs" c="dimmed">
+                Choose a 6-digit PIN to secure your account
+              </Text>
             </Stack>
           </Stack>
           <Group justify="space-between" mt="md">
-            {onSwitchToRegister && (
-              <Button variant="subtle" size="sm" onClick={onSwitchToRegister} disabled={isSubmitting}>
-                Don't have an account? Register
-              </Button>
-            )}
-            <Group ml="auto">
+            <Button variant="subtle" size="sm" onClick={onSwitchToLogin} disabled={isSubmitting}>
+              Already have an account? Login
+            </Button>
+            <Group>
               <Button variant="subtle" color="gray" onClick={handleClose} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button type="submit" loading={isSubmitting}>Login</Button>
+              <Button type="submit" loading={isSubmitting}>Register</Button>
             </Group>
           </Group>
         </Stack>

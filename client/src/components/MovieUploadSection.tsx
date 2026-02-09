@@ -48,6 +48,7 @@ type UploadStatus = 'pending' | 'uploading' | 'success' | 'error' | 'canceled';
 interface UploadQueueItem {
   id: string;
   file: File;
+  subtitleFile: File | null;
   status: UploadStatus;
   progress: number | null;
   omdbMovie: OmdbSearchResult | null;
@@ -216,6 +217,7 @@ export function MovieUploadSection({
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [queueItems, setQueueItems] = useState<UploadQueueItem[]>([]);
   const [fileInputValue, setFileInputValue] = useState<File[] | null>(null);
+  const [subtitleFile, setSubtitleFile] = useState<File | null>(null);
   const [autoUpload, setAutoUpload] = useState(false);
   const [userEditedQuery, setUserEditedQuery] = useState(false);
 
@@ -250,10 +252,16 @@ export function MovieUploadSection({
     if (!activeItem) {
       prevActiveItemIdRef.current = null;
       setUserEditedQuery(false);
+      setSubtitleFile(null);
       if (query !== '') {
         setQuery('');
       }
       return;
+    }
+
+    // Sync subtitle file with active item
+    if (activeItem.subtitleFile !== subtitleFile) {
+      setSubtitleFile(activeItem.subtitleFile);
     }
 
     if (!canLinkMetadata(activeItem.status)) {
@@ -295,6 +303,7 @@ export function MovieUploadSection({
     const newItems: UploadQueueItem[] = files.map((file) => ({
       id: generateQueueId(),
       file,
+      subtitleFile: null,
       status: 'pending',
       progress: null,
       omdbMovie: null,
@@ -390,6 +399,7 @@ export function MovieUploadSection({
     try {
       await uploadMovie({
         file: queueItem.file,
+        subtitleFile: queueItem.subtitleFile,
         omdbId: queueItem.omdbMovie.imdbID,
         signal: controller.signal,
         onProgress: (progress) => {
@@ -477,6 +487,22 @@ export function MovieUploadSection({
       ),
     );
   }, []);
+
+  const handleSubtitleFileChange = useCallback((file: File | null) => {
+    setSubtitleFile(file);
+
+    if (!activeItemId) {
+      return;
+    }
+
+    setQueueItems((prev) =>
+      prev.map((item) =>
+        item.id === activeItemId
+          ? { ...item, subtitleFile: file }
+          : item,
+      ),
+    );
+  }, [activeItemId]);
 
   const handleStartQueue = useCallback(() => {
     const readyItems = queueItemsRef.current.filter(
@@ -697,6 +723,22 @@ export function MovieUploadSection({
                 Files stay in the queue so you can assign metadata and upload them in sequence.
               </Text>
             </Stack>
+
+            {activeItem && canLinkMetadata(activeItem.status) && (
+              <Stack gap="xs">
+                <FileInput
+                  label="Subtitle file (optional)"
+                  placeholder="Select an SRT subtitle file"
+                  accept=".srt"
+                  value={subtitleFile ?? undefined}
+                  onChange={handleSubtitleFileChange}
+                  clearable
+                />
+                <Text size="xs" c="dimmed">
+                  Optional: Upload an SRT file for {activeItem.file.name}, or we'll extract embedded subtitles automatically.
+                </Text>
+              </Stack>
+            )}
 
             <Stack gap="lg">
               <Paper withBorder radius="lg" p={{ base: 'md', sm: 'lg' }}>

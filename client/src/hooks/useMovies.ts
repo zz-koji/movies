@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getMovies, getMovie, type GetMoviesRequest, type GetMovieRequest } from '../api/server';
 import type { Movie, SearchFilters } from '../types';
-import { getMovieLibrary, type MovieLibraryPagination } from '../api/movies';
+import { getMovieLibrary, getMovieCatalog, type MovieLibraryPagination } from '../api/movies';
 
 export function useMovies(params: GetMoviesRequest, enabled: boolean = true) {
   return useQuery({
@@ -112,22 +112,35 @@ export function useMovieLibrary({
       }
 
       try {
-        const requestOptions: Parameters<typeof getMovieLibrary>[0] = {
-          page,
-          limit: LOCAL_LIBRARY_PAGE_SIZE,
-          ...(normalizedQuery ? { query: normalizedQuery } : {}),
-        };
+        let raw: { movies: Movie[]; pagination: MovieLibraryPagination };
 
-        if (effectiveFilters?.genre) requestOptions.genre = effectiveFilters.genre;
-        if (sortBy) requestOptions.sortBy = sortBy
-        if (typeof effectiveFilters?.year === 'number') requestOptions.year = effectiveFilters.year;
-        if (typeof effectiveFilters?.rating === 'number') requestOptions.rating = effectiveFilters.rating;
-        if (typeof effectiveFilters?.available === 'boolean') requestOptions.available = effectiveFilters.available;
+        // If available filter is undefined, use catalog (All tab)
+        if (effectiveFilters?.available === undefined) {
+          const catalogOptions = {
+            page,
+            limit: LOCAL_LIBRARY_PAGE_SIZE,
+            ...(normalizedQuery ? { query: normalizedQuery } : {}),
+          };
+          raw = await getMovieCatalog(catalogOptions);
+        } else {
+          // Otherwise use local library (Available or Coming Soon tabs)
+          const requestOptions: Parameters<typeof getMovieLibrary>[0] = {
+            page,
+            limit: LOCAL_LIBRARY_PAGE_SIZE,
+            ...(normalizedQuery ? { query: normalizedQuery } : {}),
+          };
 
-        const raw = await getMovieLibrary(requestOptions)
+          if (effectiveFilters?.genre) requestOptions.genre = effectiveFilters.genre;
+          if (sortBy) requestOptions.sortBy = sortBy;
+          if (typeof effectiveFilters?.year === 'number') requestOptions.year = effectiveFilters.year;
+          if (typeof effectiveFilters?.rating === 'number') requestOptions.rating = effectiveFilters.rating;
+          if (typeof effectiveFilters?.available === 'boolean') requestOptions.available = effectiveFilters.available;
 
-        const pageMovies: Movie[] = raw.movies
-        const pagination = raw.pagination
+          raw = await getMovieLibrary(requestOptions);
+        }
+
+        const pageMovies: Movie[] = raw.movies;
+        const pagination = raw.pagination;
         const stats: LibraryStats = raw.pagination;
         setLocalPagination(pagination);
         setLocalStats(stats); // NEW

@@ -2,6 +2,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
 export interface UploadMovieParams {
   file: File;
+  subtitleFile?: File | null;
   omdbId: string;
   onProgress?: (progress: number | null) => void;
   signal?: AbortSignal;
@@ -21,9 +22,32 @@ export interface UploadMovieResponse {
   movie: UploadedMovieRecord;
 }
 
-export async function uploadMovie({ file, omdbId, onProgress, signal }: UploadMovieParams): Promise<UploadMovieResponse> {
+export async function uploadSubtitleToMovie(omdbId: string, subtitleFile: File): Promise<UploadedMovieRecord> {
+  const formData = new FormData();
+  formData.append('subtitle', subtitleFile);
+
+  const url = `${API_BASE_URL}/movies/${encodeURIComponent(omdbId)}/subtitle`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => response.statusText);
+    throw new Error(message || 'Failed to upload subtitle.');
+  }
+
+  return await response.json();
+}
+
+export async function uploadMovie({ file, subtitleFile, omdbId, onProgress, signal }: UploadMovieParams): Promise<UploadMovieResponse> {
   const formData = new FormData();
   formData.append('file', file);
+  if (subtitleFile) {
+    formData.append('subtitle', subtitleFile);
+  }
 
   const url = `${API_BASE_URL}/movies/upload?omdb_id=${encodeURIComponent(omdbId)}`;
 

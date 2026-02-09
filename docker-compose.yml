@@ -75,6 +75,7 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - VITE_PUBLIC_API_BASE_URL=${VITE_PUBLIC_API_BASE_URL:-/api}
+      - CHOKIDAR_USEPOLLING=true
     develop:
       watch:
         - action: sync

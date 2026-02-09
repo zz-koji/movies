@@ -147,7 +147,7 @@ interface RequestButtonProps {
 
 function RequestButton({ movie, fullWidth }: RequestButtonProps) {
   const { quickRequest, isRequesting, isRequested } = useQuickRequest();
-  const requested = isRequested(movie.id);
+  const requested = isRequested(movie.id) || movie.requested;
   const requesting = isRequesting(movie.id);
 
   if (requested) {

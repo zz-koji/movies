@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { login, whoami } from '../api/auth/login'
+import { login, register as registerAPI, logout as logoutAPI, whoami } from '../api/auth/login'
 import type { LoginCredentials } from '../types'
 import { useDisclosure } from '@mantine/hooks'
 
@@ -56,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const [loginModalOpened, { open: openLoginModal, close: closeLoginModal }] = useDisclosure(false);
+  const [registerModalOpened, { open: openRegisterModal, close: closeRegisterModal }] = useDisclosure(false);
 
 
   const context = useContext(AuthContext)
@@ -90,6 +91,62 @@ export function useAuth() {
     }
   };
 
+  const handleRegister = async (credentials: LoginCredentials): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const registerResponse = await registerAPI(credentials);
 
-  return { handleLogin, openLoginModal, loginModalOpened, closeLoginModal, context }
+      if (!registerResponse.ok) {
+        const errorData = await registerResponse.json().catch(() => ({}));
+        return { success: false, error: errorData.message || 'Registration failed' };
+      }
+
+      const data = await registerResponse.json();
+
+      if (data.user) {
+        context.setUser(data.user);
+        closeRegisterModal();
+        return { success: true };
+      }
+
+      return { success: false, error: 'Registration failed' };
+    } catch {
+      return { success: false, error: 'Network error. Please try again.' };
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutAPI();
+      context.setUser(null);
+    } catch {
+      // Even if logout fails, clear local user state
+      context.setUser(null);
+    }
+  };
+
+  const switchToRegister = () => {
+    closeLoginModal();
+    openRegisterModal();
+  };
+
+  const switchToLogin = () => {
+    closeRegisterModal();
+    openLoginModal();
+  };
+
+
+  return {
+    handleLogin,
+    handleRegister,
+    handleLogout,
+    openLoginModal,
+    loginModalOpened,
+    closeLoginModal,
+    openRegisterModal,
+    registerModalOpened,
+    closeRegisterModal,
+    switchToRegister,
+    switchToLogin,
+    context
+  }
 }

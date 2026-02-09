@@ -4,6 +4,7 @@ import { streamingService } from '../api/streaming';
 
 interface VideoPlayerProps {
   movieId: string;
+  hasSubtitles?: boolean;
   autoPlay?: boolean;
   availableQualities?: string[];
   defaultQuality?: string;
@@ -11,6 +12,7 @@ interface VideoPlayerProps {
 
 export function VideoPlayer({
   movieId,
+  hasSubtitles = false,
   autoPlay = false,
   availableQualities = ['1080p'],
   defaultQuality,
@@ -60,6 +62,14 @@ export function VideoPlayer({
     return streamingService.getMovieStreamUrl(movieId);
   }, [movieId, selectedQuality]);
 
+  const subtitleUrl = useMemo(() => {
+    if (!movieId || !hasSubtitles) {
+      return null;
+    }
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+    return `${API_BASE_URL}/movies/subtitle?omdb_id=${encodeURIComponent(movieId)}`;
+  }, [movieId, hasSubtitles]);
+
   useEffect(() => {
     setIsLoading(true);
     setError(null);
@@ -84,6 +94,48 @@ export function VideoPlayer({
       video.removeEventListener('canplay', playWhenReady);
     };
   }, [autoPlay, streamUrl]);
+
+  // Manage subtitle track via DOM to avoid re-render issues
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    // Remove any existing tracks
+    while (video.firstChild) {
+      video.removeChild(video.firstChild);
+    }
+
+    // Add subtitle track if available
+    if (subtitleUrl) {
+      const track = document.createElement('track');
+      track.kind = 'subtitles';
+      track.src = subtitleUrl;
+      track.srclang = 'en';
+      track.label = 'English';
+      video.appendChild(track);
+
+      // Enable the track once it's loaded
+      const enableTrack = () => {
+        if (video.textTracks.length > 0) {
+          video.textTracks[0].mode = 'showing';
+        }
+      };
+
+      // Try multiple events to ensure track is enabled
+      track.addEventListener('load', enableTrack);
+      video.addEventListener('loadedmetadata', enableTrack);
+
+      // Also try immediately after a short delay
+      setTimeout(enableTrack, 100);
+
+      return () => {
+        track.removeEventListener('load', enableTrack);
+        video.removeEventListener('loadedmetadata', enableTrack);
+      };
+    }
+  }, [subtitleUrl, streamUrl]);
 
   const handleVideoReady = () => {
     setIsLoading(false);
@@ -129,11 +181,11 @@ export function VideoPlayer({
 
         {streamUrl ? (
           <video
-            key={streamUrl}
             ref={videoRef}
             src={streamUrl}
             controls
             playsInline
+            crossOrigin="anonymous"
             autoPlay={autoPlay}
             style={{ width: '100%', display: 'block' }}
             onLoadedData={handleVideoReady}
@@ -141,7 +193,6 @@ export function VideoPlayer({
             onCanPlay={handleVideoReady}
             onError={handleVideoError}
           >
-            <track kind="captions" />
             Your browser does not support the video tag.
           </video>
         ) : (

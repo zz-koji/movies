@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import { PinLogin, pinLoginSchema } from './types';
 import { Response } from 'express';
@@ -17,6 +17,37 @@ export class AuthService {
       name: parsedValues.name,
     });
     if (validPin !== parsedValues.pin) throw new UnauthorizedException();
+  }
+
+  async register(data: PinLogin, response: Response) {
+    const parsedValues = pinLoginSchema.parse(data);
+
+    // Check if user already exists
+    const existingUser = await this.usersService.getUser({ name: parsedValues.name });
+    if (existingUser) {
+      throw new BadRequestException('Username already exists');
+    }
+
+    // Create new user
+    const newUser = await this.usersService.createUser({
+      name: parsedValues.name,
+      pin: parsedValues.pin,
+    });
+
+    if (!newUser) {
+      throw new BadRequestException('Failed to create user');
+    }
+
+    // Log them in automatically
+    response.user = newUser;
+    const accessToken = this.jwtService.sign({ id: newUser.id });
+    response.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      expires: new Date(Date.now() + 3600000),
+    });
+    return { user: response.user, accessToken: accessToken };
   }
 
   async login(data: PinLogin, response: Response) {

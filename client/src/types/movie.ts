@@ -12,7 +12,9 @@ export type Movie = {
   director: string;
   cast: string[];
   available: boolean;
+  requested?: boolean;
   hasVideo?: boolean;
+  hasSubtitles?: boolean;
   videoQualities?: string[];
   fileSize?: number;
   videoFormat?: string;

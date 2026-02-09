@@ -10,21 +10,54 @@ import {
   ActionIcon,
   Divider,
   Title,
-  Box
+  Box,
+  FileInput,
+  Alert,
 } from '@mantine/core';
-import { IconArrowLeft, IconShare } from '@tabler/icons-react';
+import { IconArrowLeft, IconShare, IconSubtitles, IconCheck } from '@tabler/icons-react';
+import { useState } from 'react';
 import { VideoPlayer } from './VideoPlayer';
 import type { Movie } from '../types';
+import { uploadSubtitleToMovie } from '../api/uploads';
 
 interface MovieWatchPageProps {
   movie: Movie;
   onBack?: () => void;
+  onSubtitleUpload?: () => void;
 }
 
-export function MovieWatchPage({ movie, onBack }: MovieWatchPageProps) {
+export function MovieWatchPage({ movie, onBack, onSubtitleUpload }: MovieWatchPageProps) {
+  const [subtitleFile, setSubtitleFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const topCast = movie.cast.slice(0, 5);
   const remainingCast = movie.cast.length > 5 ? movie.cast.length - 5 : 0;
+
+  const handleSubtitleUpload = async () => {
+    if (!subtitleFile) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadSuccess(false);
+
+    try {
+      await uploadSubtitleToMovie(movie.id, subtitleFile);
+      setUploadSuccess(true);
+      setSubtitleFile(null);
+
+      // Reload the page after a short delay to show the new subtitle
+      setTimeout(() => {
+        onSubtitleUpload?.();
+        window.location.reload();
+      }, 1500);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Failed to upload subtitle');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
     <Container size="xl" py="xl">
@@ -51,6 +84,7 @@ export function MovieWatchPage({ movie, onBack }: MovieWatchPageProps) {
                 {movie.hasVideo ? (
                   <VideoPlayer
                     movieId={movie.id}
+                    hasSubtitles={movie.hasSubtitles}
                     availableQualities={movie.videoQualities}
                     defaultQuality={movie.videoQualities?.[0]}
                     autoPlay={false}
@@ -72,6 +106,64 @@ export function MovieWatchPage({ movie, onBack }: MovieWatchPageProps) {
                   </Box>
                 )}
               </Paper>
+
+              {movie.hasVideo && (
+                <Paper p="md" radius="lg" withBorder>
+                  <Stack gap="sm">
+                    <Group justify="space-between" align="center">
+                      <Group gap="xs">
+                        <IconSubtitles size={20} />
+                        <Text fw={600} size="sm">
+                          Subtitle Management
+                        </Text>
+                      </Group>
+                      {movie.hasSubtitles && (
+                        <Badge color="green" variant="light" size="sm" leftSection={<IconCheck size={12} />}>
+                          Subtitles Available
+                        </Badge>
+                      )}
+                    </Group>
+
+                    {uploadSuccess && (
+                      <Alert color="green" title="Success">
+                        Subtitle uploaded successfully! Page will reload...
+                      </Alert>
+                    )}
+
+                    {uploadError && (
+                      <Alert color="red" title="Upload Failed">
+                        {uploadError}
+                      </Alert>
+                    )}
+
+                    <Group align="flex-end">
+                      <FileInput
+                        label={movie.hasSubtitles ? "Replace subtitle file" : "Upload subtitle file"}
+                        placeholder="Select an SRT file"
+                        accept=".srt"
+                        value={subtitleFile}
+                        onChange={setSubtitleFile}
+                        style={{ flex: 1 }}
+                        clearable
+                      />
+                      <Button
+                        onClick={handleSubtitleUpload}
+                        disabled={!subtitleFile}
+                        loading={isUploading}
+                        leftSection={<IconSubtitles size={16} />}
+                      >
+                        Upload
+                      </Button>
+                    </Group>
+
+                    <Text size="xs" c="dimmed">
+                      {movie.hasSubtitles
+                        ? "Upload a new SRT file to replace the current subtitles."
+                        : "Upload an SRT subtitle file for this movie."}
+                    </Text>
+                  </Stack>
+                </Paper>
+              )}
 
               <Stack gap="md">
                 <Group justify="space-between" align="flex-start">

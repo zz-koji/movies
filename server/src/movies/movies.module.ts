@@ -29,7 +29,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
           cb(null, Date.now() + '-' + file.originalname),
       }),
       limits: {
-        fileSize: 10 * 1024 * 1024 * 1024, // 10 GB
+        fileSize: 20 * 1024 * 1024 * 1024, // 20 GB
         files: 1,
       },
     }),

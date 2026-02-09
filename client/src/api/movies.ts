@@ -67,6 +67,7 @@ function transformLocalMovie(record: LocalMovieRecord, omdbMovie: any | null): M
     cast: omdbMovie?.Actors ? omdbMovie.Actors.split(',').map((value: string) => value.trim()) : [],
     available: !!record.movie_file_key,
     hasVideo: !!record.movie_file_key,
+    hasSubtitles: !!record.subtitle_file_key,
     videoQualities: ['Original'],
     videoFormat: omdbMovie?.Type ? omdbMovie.Type.toUpperCase() : 'MP4',
   };
@@ -216,4 +217,86 @@ export async function deleteMovieFromLibrary(omdbId: string): Promise<void> {
     const message = await response.text().catch(() => response.statusText);
     throw new Error(message || 'Failed to delete movie.');
   }
+}
+
+type GetCatalogOptions = {
+  query?: string;
+  page?: number;
+  limit?: number;
+};
+
+type CatalogMovie = {
+  Title: string;
+  Year: string;
+  imdbID: string;
+  Type: string;
+  Poster: string;
+  available: boolean;
+  requested: boolean;
+};
+
+type CatalogResponse = {
+  data: CatalogMovie[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+  };
+};
+
+export async function getMovieCatalog(
+  options: GetCatalogOptions = {},
+): Promise<{ movies: Movie[]; pagination: MovieLibraryPagination }> {
+  const page = options.page && options.page > 0 ? options.page : 1;
+  const limit = options.limit && options.limit > 0 ? options.limit : DEFAULT_LIBRARY_PAGE_SIZE;
+
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+
+  const trimmedQuery = options.query?.trim();
+  if (trimmedQuery) {
+    params.set('query', trimmedQuery);
+  }
+
+  const queryString = params.size > 0 ? `?${params.toString()}` : '';
+  const response = await fetch(`${API_BASE_URL}/movies/catalog${queryString}`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to load catalog: ${response.statusText}`);
+  }
+
+  const result: CatalogResponse = await response.json();
+
+  const movies: Movie[] = result.data.map((item) => ({
+    id: item.imdbID,
+    title: item.Title,
+    description: 'No description available.',
+    year: Number.parseInt(item.Year, 10) || new Date().getFullYear(),
+    genre: [],
+    rating: 0,
+    poster: item.Poster && item.Poster !== 'N/A' ? item.Poster : undefined,
+    duration: 0,
+    director: 'Unknown',
+    cast: [],
+    available: item.available,
+    requested: item.requested,
+    hasVideo: item.available,
+    videoQualities: ['Original'],
+    videoFormat: 'MP4',
+  }));
+
+  return {
+    movies,
+    pagination: {
+      page: result.pagination.page,
+      limit: result.pagination.limit,
+      total: result.pagination.total,
+      totalPages: result.pagination.totalPages,
+      hasNextPage: result.pagination.hasNextPage,
+    },
+  };
 }

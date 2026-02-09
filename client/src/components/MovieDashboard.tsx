@@ -17,13 +17,12 @@ import { MovieCard } from './MovieCard';
 import { MovieRequestForm } from './MovieRequestForm';
 import { LibraryStats } from './LibraryStats';
 import { MovieFilters } from './MovieFilters';
-import { RequestQueue } from './RequestQueue';
 import { MovieWatchPage } from './MovieWatchPage';
 import { useMovieLibrary } from '../hooks/useMovies';
 import { LoginModal } from './auth/LoginModal';
+import { RegisterModal } from './auth/RegisterModal';
 import { useAuth } from '../context/AuthContext';
-import { IconInfoCircle, IconLogin, IconSettings } from '@tabler/icons-react';
-import { MovieUploadSection } from './MovieUploadSection';
+import { IconInfoCircle, IconLogin, IconLogout, IconSettings } from '@tabler/icons-react';
 import { deleteMovieFromLibrary } from '../api/movies';
 import { useMovieRequest } from '../hooks/useMovieRequest';
 import { useMovieFilters } from '../hooks/useMovieFilters';
@@ -106,6 +105,7 @@ export function MovieDashboard() {
           isAuthenticated={Boolean(auth.context.user)}
           isAdmin={auth.context.isAdmin}
           onLogin={auth.openLoginModal}
+          onLogout={auth.handleLogout}
           onRequestMovie={movieRequests.modal.openMovieRequestModal}
           onOpenAdmin={() => setShowAdminDashboard(true)}
         />
@@ -183,26 +183,20 @@ export function MovieDashboard() {
           </Stack>
         </Paper>
 
-        <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xl">
-          <RequestQueue
-            requests={movieRequests.movieRequests}
-            loading={movieRequests.isLoading}
-            onOpenRequestModal={movieRequests.modal.openMovieRequestModal}
-            onDeleteRequest={movieRequests.handleDeleteRequest}
-          />
-
-          <MovieUploadSection
-            isAuthenticated={Boolean(auth.context.user)}
-            onRequestLogin={auth.openLoginModal}
-            onUploadSuccess={movieLibrary.reloadLocalLibrary}
-          />
-        </SimpleGrid>
       </Stack>
 
       <LoginModal
         opened={auth.loginModalOpened}
         onClose={auth.closeLoginModal}
         onSubmit={auth.handleLogin}
+        onSwitchToRegister={auth.switchToRegister}
+      />
+
+      <RegisterModal
+        opened={auth.registerModalOpened}
+        onClose={auth.closeRegisterModal}
+        onSubmit={auth.handleRegister}
+        onSwitchToLogin={auth.switchToLogin}
       />
 
       <MovieRequestForm
@@ -219,11 +213,12 @@ interface DashboardHeaderProps {
   isAuthenticated: boolean;
   isAdmin: boolean;
   onLogin: () => void;
+  onLogout: () => void;
   onRequestMovie: () => void;
   onOpenAdmin: () => void;
 }
 
-function DashboardHeader({ isAuthenticated, isAdmin, onLogin, onRequestMovie, onOpenAdmin }: DashboardHeaderProps) {
+function DashboardHeader({ isAuthenticated, isAdmin, onLogin, onLogout, onRequestMovie, onOpenAdmin }: DashboardHeaderProps) {
   return (
     <Paper radius="lg" p={{ base: 'lg', md: 'xl' }}>
       <Group justify="space-between" align="flex-start" wrap="wrap">
@@ -247,12 +242,30 @@ function DashboardHeader({ isAuthenticated, isAdmin, onLogin, onRequestMovie, on
               Admin
             </Button>
           )}
-          <Button
-            leftSection={isAuthenticated ? <IconBellPlus size={16} /> : <IconLogin size={16} />}
-            onClick={isAuthenticated ? onRequestMovie : onLogin}
-          >
-            {isAuthenticated ? 'Request Movie' : 'Login'}
-          </Button>
+          {isAuthenticated ? (
+            <>
+              <Button
+                leftSection={<IconBellPlus size={16} />}
+                onClick={onRequestMovie}
+              >
+                Request Movie
+              </Button>
+              <Button
+                variant="subtle"
+                leftSection={<IconLogout size={16} />}
+                onClick={onLogout}
+              >
+                Logout
+              </Button>
+            </>
+          ) : (
+            <Button
+              leftSection={<IconLogin size={16} />}
+              onClick={onLogin}
+            >
+              Login
+            </Button>
+          )}
         </Group>
       </Group>
     </Paper>
