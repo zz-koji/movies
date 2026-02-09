@@ -585,6 +585,7 @@ export class MoviesService {
       .leftJoin('movie_metadata as mm', 'mr.omdb_id', 'mm.omdb_id')
       .where('mr.fulfilled_movie_id', 'is', null)
 
+
     if (searchPattern) {
       requestsQuery = requestsQuery.where((eb) =>
         eb.or([
@@ -733,7 +734,7 @@ export class MoviesService {
     const totalPages = total > 0 ? Math.ceil(total / limit) : 0
     const hasNextPage = page < totalPages
 
-    const enrichedMovies: Array<LocalMovie & { metadata: OmdbMovie | null }> = []
+    const enrichedMovies: Array<LocalMovie & { available: boolean; metadata: OmdbMovie | null }> = []
 
     for (const request of requestsWithMetadata) {
       const { cached_metadata, ...movieData } = request
@@ -750,6 +751,7 @@ export class MoviesService {
         description: movieData.description || '',
         movie_file_key: movieData.movie_file_key as any,
         subtitle_file_key: movieData.subtitle_file_key as any,
+        available: false,
         metadata,
       })
     }

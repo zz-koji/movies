@@ -55,6 +55,7 @@ export function MovieCard({ movie, onWatchClick, onDeleteClick, isDeleting = fal
               {movie.available ? 'Available' : 'Coming soon'}
             </Badge>
           </Group>
+
         </div>
       </Card.Section>
 

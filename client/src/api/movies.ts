@@ -4,7 +4,7 @@ type LocalMovieRecord = {
   id: string;
   title: string;
   description: string;
-  movie_file_key: string;
+  movie_file_key: string | null;
   subtitle_file_key?: string | null;
   omdb_id: string;
   metadata?: unknown;
@@ -65,8 +65,8 @@ function transformLocalMovie(record: LocalMovieRecord, omdbMovie: any | null): M
     duration: runtime,
     director: omdbMovie?.Director ?? 'Unknown',
     cast: omdbMovie?.Actors ? omdbMovie.Actors.split(',').map((value: string) => value.trim()) : [],
-    available: true,
-    hasVideo: true,
+    available: !!record.movie_file_key,
+    hasVideo: !!record.movie_file_key,
     videoQualities: ['Original'],
     videoFormat: omdbMovie?.Type ? omdbMovie.Type.toUpperCase() : 'MP4',
   };
