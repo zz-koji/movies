@@ -45,6 +45,7 @@ export function MovieDashboard() {
     sortBy: movieFilters.sortBy,
   });
 
+
   const handleWatchMovie = (movie: Movie) => {
     setSelectedMovie(movie);
   };

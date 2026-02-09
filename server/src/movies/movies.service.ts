@@ -1,8 +1,8 @@
 import { BadRequestException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config'
-import { GetMovieDto, GetLocalMoviesDto, omdbMovieSchema, GetMoviesDto, LocalMovie, OmdbMovie } from './types'
+import { ConfigService } from '@nestjs/config';
+import { GetMovieDto, GetLocalMoviesDto, omdbMovieSchema, GetMoviesDto, LocalMovie, OmdbMovie } from './types';
 import { GetCatalogDto } from './types/dto/get-catalog.dto';
-import { Client as MinioClient } from 'minio'
+import { Client as MinioClient } from 'minio';
 import { Database } from 'src/database/types';
 import { Kysely, sql } from 'kysely';
 import { unlink } from 'fs/promises';
@@ -29,11 +29,11 @@ interface RangeBounds {
 
 @Injectable()
 export class MoviesService {
-  private static readonly DEFAULT_STREAM_CHUNK_SIZE = 1_048_576 // 1MB
-  private static readonly MIN_STREAM_CHUNK_SIZE = 262_144
-  private static readonly MAX_STREAM_CHUNK_SIZE = 8_388_608
-  private bucket: string = 'movies'
-  private readonly streamChunkSize: number
+  private static readonly DEFAULT_STREAM_CHUNK_SIZE = 1_048_576; // 1MB
+  private static readonly MIN_STREAM_CHUNK_SIZE = 262_144;
+  private static readonly MAX_STREAM_CHUNK_SIZE = 8_388_608;
+  private bucket: string = 'movies';
+  private readonly streamChunkSize: number;
   constructor(
     @Inject('MINIO_CLIENT') private readonly minioClient: MinioClient,
     @Inject('MOVIES_DATABASE') private readonly db: Kysely<Database>,
@@ -45,58 +45,58 @@ export class MoviesService {
     private readonly notificationsService: NotificationsService) {
     this.streamChunkSize = MoviesService.resolveStreamChunkSize(
       this.configService.get('STREAM_CHUNK_SIZE')
-    )
+    );
   }
 
   async getMovies(param: GetMoviesDto) {
-    const movies = await this.omdbService.getMovies({ title: param.title, page: param.page })
-    return movies
+    const movies = await this.omdbService.getMovies({ title: param.title, page: param.page });
+    return movies;
   }
 
   async getMovie(param: GetMovieDto): Promise<OmdbMovie> {
     if (param.id) {
-      const cached = await this.metadataService.getMovieMetadataRow(param.id)
+      const cached = await this.metadataService.getMovieMetadataRow(param.id);
       if (cached?.data) {
-        return cached.data as OmdbMovie
+        return cached.data as OmdbMovie;
       }
     }
 
-    const movie = await this.omdbService.getOmdbMovie(param)
+    const movie = await this.omdbService.getOmdbMovie(param);
 
     if (this.omdbService.isSuccessfulOmdbRequest(movie)) {
-      await this.metadataService.upsertMovieMetadata(movie)
+      await this.metadataService.upsertMovieMetadata(movie);
     }
-    const parsedOmdbMovie = omdbMovieSchema.safeParse(movie)
+    const parsedOmdbMovie = omdbMovieSchema.safeParse(movie);
 
     if (!parsedOmdbMovie.success) {
-      throw new BadRequestException('Unable to load OMDb data for the uploaded movie.')
+      throw new BadRequestException('Unable to load OMDb data for the uploaded movie.');
     }
 
 
-    return parsedOmdbMovie.data
+    return parsedOmdbMovie.data;
   }
 
-  private static sortMovie(movies: (LocalMovie & { metadata: OmdbMovie | null })[], sortBy: 'title' | 'year' | 'rating' = 'title') {
+  private static sortMovie(movies: (LocalMovie & { metadata: OmdbMovie | null; })[], sortBy: 'title' | 'year' | 'rating' = 'title') {
     if (sortBy === 'rating') {
       return movies.sort((a, b) => {
-        if (!a?.metadata?.imdbRating || !b?.metadata?.imdbRating) return 0
+        if (!a?.metadata?.imdbRating || !b?.metadata?.imdbRating) return 0;
         if (a?.metadata.imdbRating > b?.metadata.imdbRating) return 1;
         if (a?.metadata.imdbRating < b?.metadata.imdbRating) return -1;
-        return 0
-      })
+        return 0;
+      });
     }
 
     if (sortBy === 'title') {
       return movies.sort((a, b) => {
         if (!a?.metadata?.Title || !b?.metadata?.Title) return 0;
-        const aTitle = a.metadata.Title.toLowerCase()
-        const bTitle = b?.metadata.Title.toLowerCase()
+        const aTitle = a.metadata.Title.toLowerCase();
+        const bTitle = b?.metadata.Title.toLowerCase();
 
         if (aTitle > bTitle) return 1;
         if (aTitle < bTitle) return -1;
 
-        return 0
-      })
+        return 0;
+      });
     }
 
     if (sortBy === 'year') {
@@ -105,7 +105,7 @@ export class MoviesService {
         if (a.metadata.Year > b.metadata.Year) return 1;
         if (a.metadata.Year < b.metadata.Year) return -1;
         return 0;
-      })
+      });
     }
 
     return movies;
@@ -115,12 +115,12 @@ export class MoviesService {
   private async convertMovieToFastStart(filePath: string) {
     try {
       const fastStartPath = await this.ffmpegService.convertToFastStart(filePath);
-      return fastStartPath
+      return fastStartPath;
     } catch (error) {
       try {
-        await unlink(filePath)
+        await unlink(filePath);
       } catch (error) {
-        console.error(`Error while unlinking file: \n ${error}`)
+        console.error(`Error while unlinking file: \n ${error}`);
       }
       throw new BadRequestException(`Unable to prepare video for streaming: ${error instanceof Error ? error.message : error}`);
     }
@@ -139,7 +139,7 @@ export class MoviesService {
       { 'Content-Type': mimetype },
     );
 
-    return result
+    return result;
   }
 
   async uploadMovie(
@@ -407,33 +407,33 @@ export class MoviesService {
       .selectFrom('local_movies')
       .where('omdb_id', '=', omdbMovieId)
       .select('local_movies.movie_file_key')
-      .executeTakeFirstOrThrow(() => new NotFoundException('Request movie is not found.'))
+      .executeTakeFirstOrThrow(() => new NotFoundException('Request movie is not found.'));
 
-    return movie.movie_file_key
+    return movie.movie_file_key;
   }
 
   async streamMovie(omdbMovieId: string) {
-    const movieFileKey = await this.getMovieFileKey(omdbMovieId)
-    return await this.minioClient.getObject(this.bucket, movieFileKey)
+    const movieFileKey = await this.getMovieFileKey(omdbMovieId);
+    return await this.minioClient.getObject(this.bucket, movieFileKey);
   }
 
   async streamMovieRange(omdbMovieId: string, start: number, length: number) {
-    const movieFileKey = await this.getMovieFileKey(omdbMovieId)
-    return await this.minioClient.getPartialObject(this.bucket, movieFileKey, start, length)
+    const movieFileKey = await this.getMovieFileKey(omdbMovieId);
+    return await this.minioClient.getPartialObject(this.bucket, movieFileKey, start, length);
   }
 
   async createStreamResponse(omdbMovieId: string, rangeHeader?: string): Promise<MovieStreamResponse> {
-    const movieStats = await this.getMovieStats(omdbMovieId)
-    const fileSize = movieStats.size
-    const contentType = movieStats.metaData?.['content-type'] ?? 'application/octet-stream'
+    const movieStats = await this.getMovieStats(omdbMovieId);
+    const fileSize = movieStats.size;
+    const contentType = movieStats.metaData?.['content-type'] ?? 'application/octet-stream';
 
     const baseHeaders = {
       'Accept-Ranges': 'bytes',
       'Content-Type': contentType,
-    }
+    };
 
     if (!rangeHeader) {
-      const stream = await this.streamMovie(omdbMovieId)
+      const stream = await this.streamMovie(omdbMovieId);
       return {
         status: HttpStatus.OK,
         headers: {
@@ -441,10 +441,10 @@ export class MoviesService {
           'Content-Length': String(fileSize),
         },
         stream,
-      }
+      };
     }
 
-    const range = MoviesService.parseRangeHeader(rangeHeader, fileSize, this.streamChunkSize)
+    const range = MoviesService.parseRangeHeader(rangeHeader, fileSize, this.streamChunkSize);
 
     if (!range) {
       return {
@@ -454,13 +454,13 @@ export class MoviesService {
           'Content-Range': `bytes */${fileSize}`,
         },
         stream: null,
-      }
+      };
     }
 
-    const { start, end } = range
-    const chunkSize = end - start + 1
+    const { start, end } = range;
+    const chunkSize = end - start + 1;
 
-    const stream = await this.streamMovieRange(omdbMovieId, start, chunkSize)
+    const stream = await this.streamMovieRange(omdbMovieId, start, chunkSize);
 
     return {
       status: HttpStatus.PARTIAL_CONTENT,
@@ -470,181 +470,181 @@ export class MoviesService {
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
       },
       stream,
-    }
+    };
   }
 
   private static parseRangeHeader(rangeHeader: string, fileSize: number, chunkSize: number): RangeBounds | null {
     // Match Range headers such as `bytes=0-500`; capture groups hold the start/end digits.
-    const matches = /bytes=(\d*)-(\d*)/i.exec(rangeHeader)
+    const matches = /bytes=(\d*)-(\d*)/i.exec(rangeHeader);
 
     if (!matches) {
-      return null
+      return null;
     }
 
     // Extract the start and end ranges from matches.
     // First element represents the entire matched string. i.e. bytes=0-500
     // The following elements are the matched (group) strings. 0, 500
-    const [, rawStart, rawEnd] = matches
+    const [, rawStart, rawEnd] = matches;
 
 
-    const hasStart = rawStart !== ''
-    const hasEnd = rawEnd !== ''
+    const hasStart = rawStart !== '';
+    const hasEnd = rawEnd !== '';
 
     if (!hasStart && !hasEnd) {
-      return null
+      return null;
     }
 
-    let start = hasStart ? Number.parseInt(rawStart, 10) : NaN
-    let end = hasEnd ? Number.parseInt(rawEnd, 10) : NaN
+    let start = hasStart ? Number.parseInt(rawStart, 10) : NaN;
+    let end = hasEnd ? Number.parseInt(rawEnd, 10) : NaN;
 
     if ((hasStart && Number.isNaN(start)) || (hasEnd && Number.isNaN(end))) {
-      return null
+      return null;
     }
 
     // Suffix-byte range (`bytes=-N`)
     if (!hasStart && hasEnd) {
       // `end` now represents the suffix length (last N bytes). Clamp so invalid negatives become 0.
-      const suffixLength = Math.max(end, 0)
+      const suffixLength = Math.max(end, 0);
       if (suffixLength === 0) {
-        return null
+        return null;
       }
 
       // Start streaming from `fileSize - suffixLength` (e.g. bytes=-500 -> start=1000, end=1499).
-      const suffixStart = Math.max(fileSize - suffixLength, 0)
-      return { start: suffixStart, end: fileSize - 1 }
+      const suffixStart = Math.max(fileSize - suffixLength, 0);
+      return { start: suffixStart, end: fileSize - 1 };
     }
 
     // At this point we have a starting position.
-    start = Math.min(Math.max(start, 0), Math.max(fileSize - 1, 0))
+    start = Math.min(Math.max(start, 0), Math.max(fileSize - 1, 0));
 
     if (!hasEnd) {
       // Open-ended range: stream a bounded window starting from `start`.
-      const computedEnd = start + chunkSize - 1
-      return { start, end: Math.min(computedEnd, Math.max(fileSize - 1, 0)) }
+      const computedEnd = start + chunkSize - 1;
+      return { start, end: Math.min(computedEnd, Math.max(fileSize - 1, 0)) };
     }
 
-    end = Math.min(end, Math.max(fileSize - 1, 0))
+    end = Math.min(end, Math.max(fileSize - 1, 0));
 
     if (start > end) {
-      return null
+      return null;
     }
 
-    return { start, end }
+    return { start, end };
   }
 
   private static resolveStreamChunkSize(rawSize: unknown): number {
-    const fallback = MoviesService.DEFAULT_STREAM_CHUNK_SIZE
+    const fallback = MoviesService.DEFAULT_STREAM_CHUNK_SIZE;
 
     if (rawSize === null || rawSize === undefined || rawSize === '') {
-      return fallback
+      return fallback;
     }
 
     const parsed = typeof rawSize === 'number'
       ? rawSize
-      : Number.parseInt(String(rawSize), 10)
+      : Number.parseInt(String(rawSize), 10);
 
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      return fallback
+      return fallback;
     }
 
     const bounded = Math.min(
       MoviesService.MAX_STREAM_CHUNK_SIZE,
       Math.max(parsed, MoviesService.MIN_STREAM_CHUNK_SIZE)
-    )
+    );
 
-    return bounded
+    return bounded;
   }
 
   private static parseNumericQueryParam(value: unknown) {
     if (value === undefined || value === null || value === '') {
-      return null
+      return null;
     }
 
-    const parsed = Number.parseInt(String(value), 10)
+    const parsed = Number.parseInt(String(value), 10);
 
     if (Number.isNaN(parsed)) {
-      return null
+      return null;
     }
 
-    return parsed
+    return parsed;
   }
 
   private static parseFloatQueryParam(value: unknown) {
     if (value === undefined || value === null || value === '') {
-      return null
+      return null;
     }
 
-    const parsed = Number.parseFloat(String(value))
+    const parsed = Number.parseFloat(String(value));
 
     if (Number.isNaN(parsed)) {
-      return null
+      return null;
     }
 
-    return parsed
+    return parsed;
   }
 
   private static parseBooleanQueryParam(value: unknown) {
     if (typeof value === 'boolean') {
-      return value
+      return value;
     }
 
     if (typeof value !== 'string') {
-      return null
+      return null;
     }
 
-    const normalized = value.trim().toLowerCase()
+    const normalized = value.trim().toLowerCase();
 
     if (normalized === 'true') {
-      return true
+      return true;
     }
 
     if (normalized === 'false') {
-      return false
+      return false;
     }
 
-    return null
+    return null;
   }
 
   private static resolveLocalMoviesPagination(query: GetLocalMoviesDto = {}) {
-    const rawPage = MoviesService.parseNumericQueryParam(query.page)
-    const rawLimit = MoviesService.parseNumericQueryParam(query.limit)
+    const rawPage = MoviesService.parseNumericQueryParam(query.page);
+    const rawLimit = MoviesService.parseNumericQueryParam(query.limit);
 
-    const page = rawPage && rawPage > 0 ? rawPage : 1
-    const limit = rawLimit && rawLimit > 0 ? Math.min(rawLimit, 50) : 10
+    const page = rawPage && rawPage > 0 ? rawPage : 1;
+    const limit = rawLimit && rawLimit > 0 ? Math.min(rawLimit, 50) : 10;
 
-    return { page, limit }
+    return { page, limit };
   }
 
   private static normalizeTextQueryParam(value?: string | null) {
     if (value === undefined || value === null) {
-      return null
+      return null;
     }
 
-    const text = value.trim()
-    return text.length > 0 ? text : null
+    const text = value.trim();
+    return text.length > 0 ? text : null;
   }
 
   private static buildSearchPattern(rawTerm?: string | null) {
     if (!rawTerm) {
-      return null
+      return null;
     }
 
-    const escaped = rawTerm.replace(/[%_]/g, '\\$&')
-    return `%${escaped}%`
+    const escaped = rawTerm.replace(/[%_]/g, '\\$&');
+    return `%${escaped}%`;
   }
 
   private static resolveQuery(query: GetLocalMoviesDto) {
-    const { page, limit } = MoviesService.resolveLocalMoviesPagination(query)
-    const searchTerm = MoviesService.normalizeTextQueryParam(query.query)
-    const searchPattern = MoviesService.buildSearchPattern(searchTerm)
-    const genreFilter = MoviesService.normalizeTextQueryParam(query.genre)
-    const yearFilter = MoviesService.parseNumericQueryParam(query.year)
-    const minRatingFilter = MoviesService.parseFloatQueryParam(query.rating)
-    const availabilityFilter = MoviesService.parseBooleanQueryParam(query.available)
-    const offset = (page - 1) * limit
+    const { page, limit } = MoviesService.resolveLocalMoviesPagination(query);
+    const searchTerm = MoviesService.normalizeTextQueryParam(query.query);
+    const searchPattern = MoviesService.buildSearchPattern(searchTerm);
+    const genreFilter = MoviesService.normalizeTextQueryParam(query.genre);
+    const yearFilter = MoviesService.parseNumericQueryParam(query.year);
+    const minRatingFilter = MoviesService.parseFloatQueryParam(query.rating);
+    const availabilityFilter = MoviesService.parseBooleanQueryParam(query.available);
+    const offset = (page - 1) * limit;
 
     const sortBy: 'title' | 'year' | 'rating' =
-      query.sortBy === 'rating' || query.sortBy === 'year' ? query.sortBy : 'title'
+      query.sortBy === 'rating' || query.sortBy === 'year' ? query.sortBy : 'title';
 
     return {
       pagination: { page, limit },
@@ -656,26 +656,26 @@ export class MoviesService {
       offset,
       sortBy,
 
-    }
+    };
   }
 
   private buildLocalMoviesQuery(query: GetLocalMoviesDto = {}) {
-    const { genreFilter, minRatingFilter, offset, pagination: { limit }, searchPattern, yearFilter, sortBy } = MoviesService.resolveQuery(query)
+    const { genreFilter, minRatingFilter, offset, pagination: { limit }, searchPattern, yearFilter, sortBy } = MoviesService.resolveQuery(query);
     let moviesQuery = this.db
       .selectFrom('local_movies as lm')
       .leftJoin('movie_metadata as mm', 'mm.omdb_id', 'lm.omdb_id')
       .selectAll('lm')
-      .select(['mm.data as cached_metadata'])
+      .select(['mm.data as cached_metadata']);
 
     let totalQuery = this.db
       .selectFrom('local_movies as lm')
-      .leftJoin('movie_metadata as mm', 'mm.omdb_id', 'lm.omdb_id')
+      .leftJoin('movie_metadata as mm', 'mm.omdb_id', 'lm.omdb_id');
 
     let comingSoonQuery = this.db
       .selectFrom('movie_requests as mr')
-      .leftJoin('movie_metadata as mm', 'mr.omdb_id', 'mm.omdb_id')
+      .leftJoin('movie_metadata as mm', 'mr.omdb_id', 'mm.omdb_id');
 
-    let subTotalQuery = totalQuery
+    let subTotalQuery = totalQuery;
 
 
     if (searchPattern) {
@@ -687,7 +687,7 @@ export class MoviesService {
           eb('mm.director', 'ilike', searchPattern),
           eb('mm.actors', 'ilike', searchPattern),
         ]),
-      )
+      );
 
       subTotalQuery = totalQuery.where((eb) =>
         eb.or([
@@ -697,7 +697,7 @@ export class MoviesService {
           eb('mm.director', 'ilike', searchPattern),
           eb('mm.actors', 'ilike', searchPattern),
         ]),
-      )
+      );
       comingSoonQuery = comingSoonQuery.where((eb) =>
         eb.or([
           eb('mm.title', 'ilike', searchPattern),
@@ -705,51 +705,51 @@ export class MoviesService {
           eb('mm.director', 'ilike', searchPattern),
           eb('mm.actors', 'ilike', searchPattern),
         ]),
-      )
+      );
     }
 
     if (genreFilter) {
-      const genrePattern = MoviesService.buildSearchPattern(genreFilter)
-      moviesQuery = moviesQuery.where('mm.genre', 'ilike', genrePattern)
-      subTotalQuery = subTotalQuery.where('mm.genre', 'ilike', genrePattern)
-      comingSoonQuery = comingSoonQuery.where('mm.genre', 'ilike', genrePattern)
+      const genrePattern = MoviesService.buildSearchPattern(genreFilter);
+      moviesQuery = moviesQuery.where('mm.genre', 'ilike', genrePattern);
+      subTotalQuery = subTotalQuery.where('mm.genre', 'ilike', genrePattern);
+      comingSoonQuery = comingSoonQuery.where('mm.genre', 'ilike', genrePattern);
     }
 
     if (yearFilter !== null) {
-      moviesQuery = moviesQuery.where('mm.year', '=', yearFilter)
-      subTotalQuery = subTotalQuery.where('mm.year', '=', yearFilter)
-      comingSoonQuery = comingSoonQuery.where('mm.year', 'ilike', yearFilter)
+      moviesQuery = moviesQuery.where('mm.year', '=', yearFilter);
+      subTotalQuery = subTotalQuery.where('mm.year', '=', yearFilter);
+      comingSoonQuery = comingSoonQuery.where('mm.year', 'ilike', yearFilter);
     }
 
     if (minRatingFilter !== null) {
-      moviesQuery = moviesQuery.where('mm.imdb_rating', '>=', minRatingFilter)
-      subTotalQuery = subTotalQuery.where('mm.imdb_rating', '>=', minRatingFilter)
-      comingSoonQuery = comingSoonQuery.where('mm.imdb_rating', '>=', minRatingFilter)
+      moviesQuery = moviesQuery.where('mm.imdb_rating', '>=', minRatingFilter);
+      subTotalQuery = subTotalQuery.where('mm.imdb_rating', '>=', minRatingFilter);
+      comingSoonQuery = comingSoonQuery.where('mm.imdb_rating', '>=', minRatingFilter);
     }
 
     if (sortBy === 'rating') {
       moviesQuery = moviesQuery
         .orderBy('mm.imdb_rating', 'desc')
         .orderBy('mm.title', 'asc')
-        .orderBy('lm.title', 'asc')
+        .orderBy('lm.title', 'asc');
     } else if (sortBy === 'year') {
       moviesQuery = moviesQuery
         .orderBy('mm.year', 'desc')
         .orderBy('mm.title', 'asc')
-        .orderBy('lm.title', 'asc')
+        .orderBy('lm.title', 'asc');
     } else {
       moviesQuery = moviesQuery
         .orderBy('mm.title', 'asc')
-        .orderBy('lm.title', 'asc')
+        .orderBy('lm.title', 'asc');
     }
 
-    moviesQuery = moviesQuery.offset(offset).limit(limit)
+    moviesQuery = moviesQuery.offset(offset).limit(limit);
 
-    return { moviesQuery, totalQuery, subTotalQuery, comingSoonQuery }
+    return { moviesQuery, totalQuery, subTotalQuery, comingSoonQuery };
   }
 
   private buildUnfulfilledRequestsQuery(query: GetLocalMoviesDto = {}) {
-    const { genreFilter, minRatingFilter, offset, pagination: { limit }, searchPattern, yearFilter, sortBy } = MoviesService.resolveQuery(query)
+    const { genreFilter, minRatingFilter, offset, pagination: { limit }, searchPattern, yearFilter, sortBy } = MoviesService.resolveQuery(query);
 
     let requestsQuery = this.db
       .selectFrom('movie_requests as mr')
@@ -763,12 +763,12 @@ export class MoviesService {
         sql<string | null>`NULL`.as('subtitle_file_key'),
         sql<string>`''`.as('description'),
         'mm.data as cached_metadata',
-      ])
+      ]);
 
     let countQuery = this.db
       .selectFrom('movie_requests as mr')
       .leftJoin('movie_metadata as mm', 'mr.omdb_id', 'mm.omdb_id')
-      .where('mr.fulfilled_movie_id', 'is', null)
+      .where('mr.fulfilled_movie_id', 'is', null);
 
 
     if (searchPattern) {
@@ -780,7 +780,7 @@ export class MoviesService {
           eb('mm.director', 'ilike', searchPattern),
           eb('mm.actors', 'ilike', searchPattern),
         ]),
-      )
+      );
 
       countQuery = countQuery.where((eb) =>
         eb.or([
@@ -790,64 +790,64 @@ export class MoviesService {
           eb('mm.director', 'ilike', searchPattern),
           eb('mm.actors', 'ilike', searchPattern),
         ]),
-      )
+      );
     }
 
     if (genreFilter) {
-      const genrePattern = MoviesService.buildSearchPattern(genreFilter)
-      requestsQuery = requestsQuery.where('mm.genre', 'ilike', genrePattern)
-      countQuery = countQuery.where('mm.genre', 'ilike', genrePattern)
+      const genrePattern = MoviesService.buildSearchPattern(genreFilter);
+      requestsQuery = requestsQuery.where('mm.genre', 'ilike', genrePattern);
+      countQuery = countQuery.where('mm.genre', 'ilike', genrePattern);
     }
 
     if (yearFilter !== null) {
-      requestsQuery = requestsQuery.where('mm.year', '=', yearFilter)
-      countQuery = countQuery.where('mm.year', '=', yearFilter)
+      requestsQuery = requestsQuery.where('mm.year', '=', yearFilter);
+      countQuery = countQuery.where('mm.year', '=', yearFilter);
     }
 
     if (minRatingFilter !== null) {
-      requestsQuery = requestsQuery.where('mm.imdb_rating', '>=', minRatingFilter)
-      countQuery = countQuery.where('mm.imdb_rating', '>=', minRatingFilter)
+      requestsQuery = requestsQuery.where('mm.imdb_rating', '>=', minRatingFilter);
+      countQuery = countQuery.where('mm.imdb_rating', '>=', minRatingFilter);
     }
 
     if (sortBy === 'rating') {
       requestsQuery = requestsQuery
         .orderBy('mm.imdb_rating', 'desc')
         .orderBy('mm.title', 'asc')
-        .orderBy('mr.title', 'asc')
+        .orderBy('mr.title', 'asc');
     } else if (sortBy === 'year') {
       requestsQuery = requestsQuery
         .orderBy('mm.year', 'desc')
         .orderBy('mm.title', 'asc')
-        .orderBy('mr.title', 'asc')
+        .orderBy('mr.title', 'asc');
     } else {
       requestsQuery = requestsQuery
         .orderBy('mm.title', 'asc')
-        .orderBy('mr.title', 'asc')
+        .orderBy('mr.title', 'asc');
     }
 
-    requestsQuery = requestsQuery.offset(offset).limit(limit)
+    requestsQuery = requestsQuery.offset(offset).limit(limit);
 
-    return { requestsQuery, countQuery }
+    return { requestsQuery, countQuery };
   }
 
   async getLocalMovies(query: GetLocalMoviesDto = {}) {
-    const { availabilityFilter } = MoviesService.resolveQuery(query)
+    const { availabilityFilter } = MoviesService.resolveQuery(query);
 
     // Handle different availability filters
     if (availabilityFilter === false) {
       // Return only unfulfilled requests (Coming Soon)
-      return this.getUnfulfilledRequests(query)
+      return this.getUnfulfilledRequests(query);
     } else if (availabilityFilter === true) {
       // Return only available movies (current behavior)
-      return this.getAvailableMovies(query)
+      return this.getAvailableMovies(query);
     } else {
       // Return both available movies and unfulfilled requests (All)
-      return this.getAllMoviesAndRequests(query)
+      return this.getAllMoviesAndRequests(query);
     }
   }
 
   private async getAvailableMovies(query: GetLocalMoviesDto = {}) {
-    const { moviesQuery, totalQuery, subTotalQuery, comingSoonQuery } = this.buildLocalMoviesQuery(query)
+    const { moviesQuery, totalQuery, subTotalQuery, comingSoonQuery } = this.buildLocalMoviesQuery(query);
 
     const [moviesWithMetadata, totalResult, subTotalResult, comingSoonResult] = await Promise.all([
       moviesQuery.execute(),
@@ -861,30 +861,30 @@ export class MoviesService {
       comingSoonQuery
         .select(({ fn }) => fn.count<number>('id').as('count')).where('fulfilled_movie_id', 'is', null)
         .executeTakeFirst()
-    ])
+    ]);
 
-    const total = totalResult?.count ? Number(totalResult.count) : 0
-    const subTotal = subTotalResult?.count ? Number(subTotalResult.count) : 0
-    const comingSoon = comingSoonResult?.count ? Number(comingSoonResult.count) : 0
-    const totalRuntime = totalResult?.runtime ? Number(totalResult.runtime) : 0
+    const total = totalResult?.count ? Number(totalResult.count) : 0;
+    const subTotal = subTotalResult?.count ? Number(subTotalResult.count) : 0;
+    const comingSoon = comingSoonResult?.count ? Number(comingSoonResult.count) : 0;
+    const totalRuntime = totalResult?.runtime ? Number(totalResult.runtime) : 0;
 
-    const limit = query?.limit ? Number(query.limit) : 0
-    const page = query?.page ? Number(query.page) : 0
+    const limit = query?.limit ? Number(query.limit) : 0;
+    const page = query?.page ? Number(query.page) : 0;
 
-    const totalPages = total > 0 ? Math.ceil(total / limit) : 0
-    const hasNextPage = page < totalPages
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+    const hasNextPage = page < totalPages;
 
-    const enrichedMovies: Array<LocalMovie & { metadata: OmdbMovie | null }> = []
+    const enrichedMovies: Array<LocalMovie & { metadata: OmdbMovie | null; }> = [];
 
     for (const movie of moviesWithMetadata) {
-      const { cached_metadata, ...localMovie } = movie
-      let metadata: OmdbMovie | null = cached_metadata
+      const { cached_metadata, ...localMovie } = movie;
+      let metadata: OmdbMovie | null = cached_metadata;
 
       if (!metadata && localMovie.omdb_id) {
-        metadata = await this.getMovie({ id: localMovie.omdb_id })
+        metadata = await this.getMovie({ id: localMovie.omdb_id });
       }
 
-      enrichedMovies.push({ ...localMovie, metadata })
+      enrichedMovies.push({ ...localMovie, metadata });
     }
 
     return {
@@ -899,35 +899,36 @@ export class MoviesService {
         totalPages,
         hasNextPage,
       },
-    }
+    };
   }
 
   private async getUnfulfilledRequests(query: GetLocalMoviesDto = {}) {
-    const { requestsQuery, countQuery } = this.buildUnfulfilledRequestsQuery(query)
+    const { requestsQuery, countQuery } = this.buildUnfulfilledRequestsQuery(query);
 
     const [requestsWithMetadata, countResult] = await Promise.all([
       requestsQuery.execute(),
       countQuery
         .select(({ fn }) => fn.count<number>('id').as('count'))
         .executeTakeFirst(),
-    ])
+    ]);
 
-    const total = countResult?.count ? Number(countResult.count) : 0
-    const limit = query?.limit ? Number(query.limit) : 0
-    const page = query?.page ? Number(query.page) : 0
+    const total = countResult?.count ? Number(countResult.count) : 0;
+    const limit = query?.limit ? Number(query.limit) : 0;
+    const page = query?.page ? Number(query.page) : 0;
 
-    const totalPages = total > 0 ? Math.ceil(total / limit) : 0
-    const hasNextPage = page < totalPages
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+    const hasNextPage = page < totalPages;
 
-    const enrichedMovies: Array<LocalMovie & { available: boolean; metadata: OmdbMovie | null }> = []
+    const enrichedMovies: Array<LocalMovie & { available: boolean; metadata: OmdbMovie | null; }> = [];
 
     for (const request of requestsWithMetadata) {
-      const { cached_metadata, ...movieData } = request
-      let metadata: OmdbMovie | null = cached_metadata
+      const { cached_metadata, ...movieData } = request;
+      let metadata: OmdbMovie | null = cached_metadata;
 
       if (!metadata && movieData.omdb_id) {
-        metadata = await this.getMovie({ id: movieData.omdb_id })
+        metadata = await this.getMovie({ id: movieData.omdb_id });
       }
+
 
       enrichedMovies.push({
         id: movieData.id,
@@ -938,7 +939,7 @@ export class MoviesService {
         subtitle_file_key: movieData.subtitle_file_key as any,
         available: false,
         metadata,
-      })
+      });
     }
 
     // Get overall stats for pagination
@@ -954,7 +955,9 @@ export class MoviesService {
         .where('fulfilled_movie_id', 'is', null)
         .select(({ fn }) => fn.count<number>('id').as('count'))
         .executeTakeFirst(),
-    ])
+    ]);
+
+    console.log(enrichedMovies);
 
     return {
       data: MoviesService.sortMovie(enrichedMovies, query.sortBy),
@@ -968,19 +971,19 @@ export class MoviesService {
         totalPages,
         hasNextPage,
       },
-    }
+    };
   }
 
   private async getAllMoviesAndRequests(query: GetLocalMoviesDto = {}) {
-    const { pagination: { limit, page }, offset } = MoviesService.resolveQuery(query)
+    const { pagination: { limit, page }, offset } = MoviesService.resolveQuery(query);
 
     // Get both available movies and unfulfilled requests
-    const { moviesQuery: availableQuery, totalQuery, comingSoonQuery } = this.buildLocalMoviesQuery(query)
-    const { requestsQuery: requestsQuery } = this.buildUnfulfilledRequestsQuery(query)
+    const { moviesQuery: availableQuery, totalQuery, comingSoonQuery } = this.buildLocalMoviesQuery(query);
+    const { requestsQuery: requestsQuery } = this.buildUnfulfilledRequestsQuery(query);
 
     // Remove limit/offset from individual queries - we'll apply it after merging
-    const availableQueryNoLimit = availableQuery.clearLimit().clearOffset()
-    const requestsQueryNoLimit = requestsQuery.clearLimit().clearOffset()
+    const availableQueryNoLimit = availableQuery.clearLimit().clearOffset();
+    const requestsQueryNoLimit = requestsQuery.clearLimit().clearOffset();
 
     const [availableMovies, unfulfilledRequests, totalResult, comingSoonResult] = await Promise.all([
       availableQueryNoLimit.execute(),
@@ -993,29 +996,31 @@ export class MoviesService {
         .select(({ fn }) => fn.count<number>('id').as('count'))
         .where('fulfilled_movie_id', 'is', null)
         .executeTakeFirst(),
-    ])
+    ]);
 
     // Merge and enrich all results
-    const allMovies: Array<LocalMovie & { metadata: OmdbMovie | null }> = []
+    const allMovies: Array<LocalMovie & { metadata: OmdbMovie | null; }> = [];
 
     for (const movie of availableMovies) {
-      const { cached_metadata, ...localMovie } = movie
-      let metadata: OmdbMovie | null = cached_metadata
+      const { cached_metadata, ...localMovie } = movie;
+      let metadata: OmdbMovie | null = cached_metadata;
 
       if (!metadata && localMovie.omdb_id) {
-        metadata = await this.getMovie({ id: localMovie.omdb_id })
+        metadata = await this.getMovie({ id: localMovie.omdb_id });
       }
 
-      allMovies.push({ ...localMovie, metadata })
+      allMovies.push({ ...localMovie, metadata });
     }
 
     for (const request of unfulfilledRequests) {
-      const { cached_metadata, ...movieData } = request
-      let metadata: OmdbMovie | null = cached_metadata
+      const { cached_metadata, ...movieData } = request;
+      let metadata: OmdbMovie | null = cached_metadata;
 
       if (!metadata && movieData.omdb_id) {
-        metadata = await this.getMovie({ id: movieData.omdb_id })
+        metadata = await this.getMovie({ id: movieData.omdb_id });
       }
+
+      console.log(movieData);
 
       allMovies.push({
         id: movieData.id,
@@ -1025,22 +1030,22 @@ export class MoviesService {
         movie_file_key: movieData.movie_file_key as any,
         subtitle_file_key: movieData.subtitle_file_key as any,
         metadata,
-      })
+      });
     }
 
     // Sort all movies
-    const sortedMovies = MoviesService.sortMovie(allMovies, query.sortBy)
+    const sortedMovies = MoviesService.sortMovie(allMovies, query.sortBy);
 
     // Apply pagination
-    const paginatedMovies = sortedMovies.slice(offset, offset + limit)
+    const paginatedMovies = sortedMovies.slice(offset, offset + limit);
 
-    const totalAvailable = totalResult?.count ? Number(totalResult.count) : 0
-    const comingSoon = comingSoonResult?.count ? Number(comingSoonResult.count) : 0
-    const total = totalAvailable + comingSoon
-    const totalRuntime = totalResult?.runtime ? Number(totalResult.runtime) : 0
+    const totalAvailable = totalResult?.count ? Number(totalResult.count) : 0;
+    const comingSoon = comingSoonResult?.count ? Number(comingSoonResult.count) : 0;
+    const total = totalAvailable + comingSoon;
+    const totalRuntime = totalResult?.runtime ? Number(totalResult.runtime) : 0;
 
-    const totalPages = total > 0 ? Math.ceil(total / limit) : 0
-    const hasNextPage = page < totalPages
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+    const hasNextPage = page < totalPages;
 
     return {
       data: paginatedMovies,
@@ -1054,27 +1059,27 @@ export class MoviesService {
         totalPages,
         hasNextPage,
       },
-    }
+    };
   }
 
   async getMovieStats(omdbMovieId: string) {
-    const movieFileKey = await this.getMovieFileKey(omdbMovieId)
-    return await this.minioClient.statObject(this.bucket, movieFileKey)
+    const movieFileKey = await this.getMovieFileKey(omdbMovieId);
+    return await this.minioClient.statObject(this.bucket, movieFileKey);
   }
 
   async deleteMovie(imdbId: string) {
-    const movieFileKey = await this.getMovieFileKey(imdbId)
+    const movieFileKey = await this.getMovieFileKey(imdbId);
     const [deleteRecord, _deleteObject] = await Promise.all([
       await this.db.deleteFrom('local_movies').where('omdb_id', '=', imdbId).returningAll().executeTakeFirst(),
       await this.minioClient.removeObject(this.bucket, movieFileKey)
-    ])
+    ]);
 
-    return deleteRecord
+    return deleteRecord;
   }
 
   async getMovieCatalog(params: GetCatalogDto) {
-    const page = params.page && params.page > 0 ? params.page : 1
-    const limit = params.limit && params.limit > 0 ? Math.min(params.limit, 50) : 10
+    const page = params.page && params.page > 0 ? params.page : 1;
+    const limit = params.limit && params.limit > 0 ? Math.min(params.limit, 50) : 10;
 
     // If no query, return empty state
     if (!params.query || params.query.trim() === '') {
@@ -1087,21 +1092,21 @@ export class MoviesService {
           totalPages: 0,
           hasNextPage: false,
         },
-      }
+      };
     }
 
     // Search OMDB
     const omdbResults = await this.omdbService.getMovies({
       title: params.query,
       page,
-    })
+    });
 
     // Enrich with availability status
-    const enrichedMovies = await this.enrichWithAvailability(omdbResults.Search || [])
+    const enrichedMovies = await this.enrichWithAvailability(omdbResults.Search || []);
 
-    const total = omdbResults.totalResults ? parseInt(omdbResults.totalResults, 10) : 0
-    const totalPages = total > 0 ? Math.ceil(total / limit) : 0
-    const hasNextPage = page < totalPages
+    const total = omdbResults.totalResults ? parseInt(omdbResults.totalResults, 10) : 0;
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+    const hasNextPage = page < totalPages;
 
     return {
       data: enrichedMovies,
@@ -1112,24 +1117,24 @@ export class MoviesService {
         totalPages,
         hasNextPage,
       },
-    }
+    };
   }
 
   private async enrichWithAvailability(omdbMovies: any[]) {
     if (omdbMovies.length === 0) {
-      return []
+      return [];
     }
 
-    const omdbIds = omdbMovies.map((m) => m.imdbID).filter(Boolean)
+    const omdbIds = omdbMovies.map((m) => m.imdbID).filter(Boolean);
 
     // Batch query: check which movies are available
     const availableMovies = await this.db
       .selectFrom('local_movies')
       .where('omdb_id', 'in', omdbIds)
       .select('omdb_id')
-      .execute()
+      .execute();
 
-    const availableSet = new Set(availableMovies.map((m) => m.omdb_id))
+    const availableSet = new Set(availableMovies.map((m) => m.omdb_id));
 
     // Batch query: check which movies are requested (unfulfilled)
     const requestedMovies = await this.db
@@ -1137,15 +1142,15 @@ export class MoviesService {
       .where('omdb_id', 'in', omdbIds)
       .where('fulfilled_movie_id', 'is', null)
       .select('omdb_id')
-      .execute()
+      .execute();
 
-    const requestedSet = new Set(requestedMovies.map((m) => m.omdb_id))
+    const requestedSet = new Set(requestedMovies.map((m) => m.omdb_id));
 
     // Enrich each movie with status flags
     return omdbMovies.map((movie) => ({
       ...movie,
       available: availableSet.has(movie.imdbID),
       requested: requestedSet.has(movie.imdbID),
-    }))
+    }));
   }
 }

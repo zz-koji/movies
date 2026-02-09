@@ -8,6 +8,7 @@ import type { Movie } from '../types';
 export function useQuickRequest() {
   const { addRequestedMovie, isMovieRequested } = useRequestedMovies();
   const [requestingMovieId, setRequestingMovieId] = useState<string | null>(null);
+  const [requestingImdbId, setRequestingImdbId] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: async (movie: Movie) => {
@@ -15,6 +16,7 @@ export function useQuickRequest() {
         title: movie.title,
         priority: 'medium',
         notes: undefined,
+        omdb_id: movie.id
         // omdb_id will be undefined - admin can link it later
       });
     },
@@ -22,15 +24,18 @@ export function useQuickRequest() {
       addRequestedMovie(movie.id);
       toast.success(`✓ ${movie.title} requested`);
       setRequestingMovieId(null);
+      setRequestingImdbId(null);
     },
     onError: (error, _movie) => {
       const message = error instanceof Error ? error.message : 'Request failed';
       toast.error(`⚠ ${message}`);
       setRequestingMovieId(null);
+      setRequestingImdbId(null);  
     },
   });
 
   const quickRequest = (movie: Movie) => {
+    console.log('Movie requested: ', movie)
     if (isMovieRequested(movie.id)) {
       return;
     }

@@ -183,7 +183,7 @@ export function AdminDashboard() {
       // Update request with OMDB ID and mark as completed
       await updateRequest.mutateAsync({
         id: quickUploadModal!.requestId,
-        data: { status: 'completed', omdb_id: omdbId },
+        data: { status: 'completed' },
       })
 
       setQuickUploadModal(null)

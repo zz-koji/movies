@@ -164,6 +164,8 @@ function RequestButton({ movie, fullWidth }: RequestButtonProps) {
     );
   }
 
+  console.log('Rendering RequestButton for movie:', movie, 'Requested:', requested, 'Requesting:', requesting);
+
   return (
     <Button
       variant="filled"

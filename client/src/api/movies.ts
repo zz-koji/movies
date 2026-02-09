@@ -32,7 +32,7 @@ type GetMovieLibraryOptions = {
   query?: string;
   genre?: string;
   year?: number;
-  sortBy?: 'title' | 'rating' | 'year'
+  sortBy?: 'title' | 'rating' | 'year';
   rating?: number;
   available?: 'available' | 'upcoming' | 'all';
 };
@@ -108,8 +108,8 @@ function parseNumeric(value: unknown, fallback: number): number {
 
 async function requestLocalMovies(
   params: URLSearchParams,
-  fallback: { page: number; limit: number, sortBy: 'title' | 'year' | 'rating' },
-): Promise<{ records: LocalMovieRecord[]; pagination: MovieLibraryPagination }> {
+  fallback: { page: number; limit: number, sortBy: 'title' | 'year' | 'rating'; },
+): Promise<{ records: LocalMovieRecord[]; pagination: MovieLibraryPagination; }> {
   const queryString = params.size > 0 ? `?${params.toString()}` : '';
   const response = await fetch(`${API_BASE_URL}/movies/local${queryString}`);
 
@@ -128,9 +128,9 @@ async function requestLocalMovies(
 
   const paginationSource = Array.isArray(payload) ? undefined : payload.pagination;
   const total = parseNumeric(paginationSource?.total, records.length);
-  const subTotal = paginationSource?.subTotal ? paginationSource.subTotal : 0
-  const comingSoon = paginationSource?.comingSoon ? paginationSource?.comingSoon : 0
-  const totalRuntime = paginationSource?.totalRuntime ? paginationSource?.totalRuntime : 0
+  const subTotal = paginationSource?.subTotal ? paginationSource.subTotal : 0;
+  const comingSoon = paginationSource?.comingSoon ? paginationSource?.comingSoon : 0;
+  const totalRuntime = paginationSource?.totalRuntime ? paginationSource?.totalRuntime : 0;
   const page = parseNumeric(paginationSource?.page, fallback.page);
   const limit = parseNumeric(paginationSource?.limit, fallback.limit);
   const totalPages = total > 0 && limit > 0 ? Math.ceil(total / limit) : 0;
@@ -159,7 +159,7 @@ export async function getMovieLibrary(
 ): Promise<MovieLibraryResult> {
   const page = options.page && options.page > 0 ? options.page : 1;
   const limit = options.limit && options.limit > 0 ? options.limit : DEFAULT_LIBRARY_PAGE_SIZE;
-  const sortBy = options.sortBy ? options.sortBy : 'title'
+  const sortBy = options.sortBy ? options.sortBy : 'title';
 
   const params = new URLSearchParams({
     page: String(page),
@@ -187,7 +187,6 @@ export async function getMovieLibrary(
 
   if (typeof options.available === 'string') {
 
-    console.log('Setting availability filter to:', options.available);
 
     if (options.available === 'upcoming') {
       params.set('available', 'false');
@@ -195,7 +194,7 @@ export async function getMovieLibrary(
     else if (options.available === 'available') {
       params.set('available', 'true');
     }
-    
+
 
   }
 
@@ -258,7 +257,7 @@ type CatalogResponse = {
 
 export async function getMovieCatalog(
   options: GetCatalogOptions = {},
-): Promise<{ movies: Movie[]; pagination: MovieLibraryPagination }> {
+): Promise<{ movies: Movie[]; pagination: MovieLibraryPagination; }> {
   const page = options.page && options.page > 0 ? options.page : 1;
   const limit = options.limit && options.limit > 0 ? options.limit : DEFAULT_LIBRARY_PAGE_SIZE;
 
