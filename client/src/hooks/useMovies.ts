@@ -68,6 +68,7 @@ export function useMovieLibrary({
   const [activeQuery, setActiveQuery] = useState<string | undefined>(undefined);
   const [localStats, setLocalStats] = useState<LibraryStats | null>(null); // NEW
   const activeFiltersRef = useRef<Partial<Omit<SearchFilters, 'query'>>>({});
+  const requestTokenRef = useRef(0);
 
   const isQuery = debouncedQuery.trim().length >= 2;
 
@@ -95,6 +96,8 @@ export function useMovieLibrary({
       append = false,
       query,
     }: { page?: number; append?: boolean; query?: string; } = {}) => {
+      const requestToken = requestTokenRef.current + 1;
+      requestTokenRef.current = requestToken;
       setIsLoadingLocalLibrary(true);
 
       const normalizedQuery = query?.trim();
@@ -153,8 +156,16 @@ export function useMovieLibrary({
           throw new Error('Invalid availability filter');
         }
 
-        handleResults(raw, false);
+        if (requestToken !== requestTokenRef.current) {
+          return;
+        }
+
+        handleResults(raw, append);
       } catch (error) {
+        if (requestToken !== requestTokenRef.current) {
+          return;
+        }
+
         console.error('Failed to load local library', error);
         const normalizedError = error instanceof Error ? error : new Error('Failed to load local library');
         setLocalError(normalizedError);
@@ -218,4 +229,3 @@ export function useMovieLibrary({
     stats: localStats, // NEW
   };
 }
-
