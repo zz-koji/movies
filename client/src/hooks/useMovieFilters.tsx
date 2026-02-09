@@ -9,17 +9,14 @@ export function useMovieFilters() {
     genre: undefined,
     year: undefined,
     rating: undefined,
-    available: undefined,
+    available: 'available',
   };
 
   const [filters, setFilters] = useState<SearchFilters>(INITIAL_FILTERS);
   const [sortBy, setSortBy] = useState<'title' | 'rating' | 'year'>('title');
 
   const availability = useMemo<'all' | 'available' | 'upcoming'>(() => {
-    if (filters.available === undefined) {
-      return 'all';
-    }
-    return filters.available ? 'available' : 'upcoming';
+    return filters.available
   }, [filters.available]);
 
   const handleFiltersChange = (nextFilters: SearchFilters) => {
@@ -30,10 +27,7 @@ export function useMovieFilters() {
   };
 
   const handleAvailabilityChange = (value: 'all' | 'available' | 'upcoming') => {
-    handleFiltersChange({
-      ...filters,
-      available: value === 'all' ? undefined : value === 'available',
-    });
+    handleFiltersChange({...filters, available: value});
   };
 
   const handleClearFilters = () => {

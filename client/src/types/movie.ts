@@ -89,5 +89,5 @@ export type SearchFilters = {
   genre?: string;
   year?: number;
   rating?: number;
-  available?: boolean;
+  available: 'available' | 'upcoming' | 'all';
 }

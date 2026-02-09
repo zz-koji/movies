@@ -34,7 +34,7 @@ type GetMovieLibraryOptions = {
   year?: number;
   sortBy?: 'title' | 'rating' | 'year'
   rating?: number;
-  available?: boolean;
+  available?: 'available' | 'upcoming' | 'all';
 };
 
 export type MovieLibraryResult = {
@@ -185,8 +185,18 @@ export async function getMovieLibrary(
     params.set('rating', String(options.rating));
   }
 
-  if (typeof options.available === 'boolean') {
-    params.set('available', String(options.available));
+  if (typeof options.available === 'string') {
+
+    console.log('Setting availability filter to:', options.available);
+
+    if (options.available === 'upcoming') {
+      params.set('available', 'false');
+    }
+    else if (options.available === 'available') {
+      params.set('available', 'true');
+    }
+    
+
   }
 
   const fallback = { page, limit, sortBy };
@@ -219,7 +229,7 @@ export async function deleteMovieFromLibrary(omdbId: string): Promise<void> {
   }
 }
 
-type GetCatalogOptions = {
+export type GetCatalogOptions = {
   query?: string;
   page?: number;
   limit?: number;
