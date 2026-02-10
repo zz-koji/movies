@@ -41,3 +41,50 @@
   backdrop-filter: blur(12px);
   background: linear-gradient(145deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95));
 }
+
+/* storage-table.css */
+.storage-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+
+
+.storage-table th,
+.storage-table td {
+  padding: 12px 16px;
+  text-align: left;
+}
+
+.storage-table th {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.storage-table tbody tr {
+  border-top: 1px solid #1e293b;
+}
+
+.storage-table tbody tr:hover {
+  background: #2e2e2e;
+}
+
+.disk-row {
+  font-weight: 600;
+}
+
+.partition-row td:first-child {
+  padding-left: 32px;
+  color: #cbd5f5;
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: #1e293b;
+}

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useDebounce } from 'use-debounce'
 import {
   ActionIcon,
@@ -18,6 +18,7 @@ import {
   Select,
   SimpleGrid,
   Skeleton,
+  Spoiler,
   Stack,
   Table,
   Text,
@@ -54,6 +55,8 @@ import { LoginModal } from '../auth/LoginModal'
 import { RegisterModal } from '../auth/RegisterModal'
 import { IconLogin } from '@tabler/icons-react'
 import { useMovies } from '../../hooks/useMovies'
+import { getStorageUsage } from '../../api/storage';
+import { StorageTable } from '../StorageTable';
 
 const STATUS_OPTIONS = [
   { value: 'queued', label: 'Queued' },
@@ -72,6 +75,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   medium: 'yellow',
   high: 'red',
 }
+
 
 export function AdminDashboard() {
   const auth = useAuth()
@@ -204,6 +208,10 @@ export function AdminDashboard() {
           <Text c="dimmed">Manage movie requests and users</Text>
         </div>
       </Group>
+
+<Spoiler maxHeight={0} showLabel="Inspect Storage" hideLabel="Hide Storage Usage" >
+      <StorageTable />
+</Spoiler>
 
       {/* Stats Cards */}
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>

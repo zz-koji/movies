@@ -55,7 +55,7 @@ export function LibraryStats({ movies, stats }: LibraryStatsProps) {
       label: 'Available',
       value: merged.available,
       icon: <IconDeviceTv size={18} />,
-      description: `${merged.comingSoon} coming soon`,
+      description: `${merged.comingSoon ? `${merged.comingSoon} coming soon` : 'No requests yet!'}`,
     },
     {
       label: 'Avg rating',
