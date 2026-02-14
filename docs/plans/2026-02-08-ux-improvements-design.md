@@ -10,8 +10,8 @@
 
 The current movie library interface has friction points that hurt the user experience, especially on mobile devices:
 
-1. **Discovery & Request Flow**: Users find unavailable movies but must navigate through modals to request them
-2. **Search Experience**: Both browsers and targeted searchers need quicker paths from search to action
+<!-- 1. **Discovery & Request Flow**: Users find unavailable movies but must navigate through modals to request them -->
+<!-- 2. **Search Experience**: Both browsers and targeted searchers need quicker paths from search to action -->
 3. **Admin Management**: Single admin managing manual download workflow needs better efficiency tools
 4. **Mobile Experience**: Modal-heavy interactions are disruptive on mobile; opening/closing forms is tedious
 
@@ -37,20 +37,20 @@ The current movie library interface has friction points that hurt the user exper
 
 ### Three Request Patterns
 
-**1. Inline Quick Request** (zero-modal)
-- Direct action from movie cards
-- One tap to request unavailable movies
-- Toast notification for feedback
+<!-- **1. Inline Quick Request** (zero-modal) -->
+<!-- - Direct action from movie cards -->
+<!-- - One tap to request unavailable movies -->
+<!-- - Toast notification for feedback -->
 
-**2. Express Search-to-Request** (minimal interaction)
-- Prominent header search
-- Inline results with immediate actions
-- Local library + OMDb integration
+<!-- **2. Express Search-to-Request** (minimal interaction) -->
+<!-- - Prominent header search -->
+<!-- - Inline results with immediate actions -->
+<!-- - Local library + OMDb integration -->
 
-**3. Full Request Form** (advanced, optional)
-- Kept for detailed requests
-- Streamlined to essential fields
-- Accessible but not primary path
+<!-- **3. Full Request Form** (advanced, optional) -->
+<!-- - Kept for detailed requests -->
+<!-- - Streamlined to essential fields -->
+<!-- - Accessible but not primary path -->
 
 ---
 

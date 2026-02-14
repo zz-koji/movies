@@ -23,7 +23,9 @@
       "Bash(echo:*)",
       "Bash(done)",
       "Bash(git add:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose down:*)"
     ]
   }
 }

@@ -1,8 +1,24 @@
-import { Controller, Delete, Get, Headers, Param, Post, Query, Res, UploadedFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  Param,
+  Post,
+  Query,
+  Res,
+  UploadedFile,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { MoviesService } from './movies.service';
-import type { GetMoviesDto, GetMovieDto, GetLocalMoviesDto } from './types'
+import type { GetMoviesDto, GetMovieDto, GetLocalMoviesDto } from './types';
 import type { GetCatalogDto } from './types/dto/get-catalog.dto';
-import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
+import {
+  FileInterceptor,
+  FileFieldsInterceptor,
+} from '@nestjs/platform-express';
 import { FileValidationPipe } from 'src/file-validation/file-validation.pipe';
 import { SubtitleValidationPipe } from 'src/file-validation/subtitle-validation.pipe';
 import type { Response } from 'express';
@@ -11,31 +27,31 @@ import { Transform } from 'stream';
 
 @Controller('movies')
 export class MoviesController {
-  constructor(private readonly moviesService: MoviesService) { }
+  constructor(private readonly moviesService: MoviesService) {}
 
   @Get('local')
   async localMovies(@Query() query: GetLocalMoviesDto) {
-    return await this.moviesService.getLocalMovies(query)
+    return await this.moviesService.getLocalMovies(query);
   }
 
   @Get('catalog')
   async getCatalog(@Query() query: GetCatalogDto) {
-    return await this.moviesService.getMovieCatalog(query)
+    return await this.moviesService.getMovieCatalog(query);
   }
 
   @Get()
   async getMovies(@Query() query: GetMoviesDto) {
-    return this.moviesService.getMovies(query)
+    return this.moviesService.getMovies(query);
   }
 
   @Get('omdb')
   async getOmdbMovies(@Query() query: GetMoviesDto) {
-    return this.moviesService.getMovies(query)
+    return this.moviesService.getMovies(query);
   }
 
   @Get('movie')
   async getMovie(@Query() param: GetMovieDto) {
-    return await this.moviesService.getMovie(param)
+    return await this.moviesService.getMovie(param);
   }
 
   @Post('upload')
@@ -47,7 +63,8 @@ export class MoviesController {
     ]),
   )
   async uploadMovie(
-    @UploadedFiles() files: {
+    @UploadedFiles()
+    files: {
       file?: Express.Multer.File[];
       subtitle?: Express.Multer.File[];
     },
@@ -66,46 +83,56 @@ export class MoviesController {
       new SubtitleValidationPipe().transform(subtitleFile, {} as any);
     }
 
-    return await this.moviesService.uploadMovie(videoFile, omdbMovieId, subtitleFile);
+    return await this.moviesService.uploadMovie(
+      videoFile,
+      omdbMovieId,
+      subtitleFile,
+    );
   }
 
   @Get('stream')
-  async streamMovie(@Query('omdb_id') omdbMovieId: string, @Headers('range') rangeHeader: string | undefined, @Res() res: Response) {
-    const { headers, status, stream } = await this.moviesService.createStreamResponse(omdbMovieId, rangeHeader)
+  async streamMovie(
+    @Query('omdb_id') omdbMovieId: string,
+    @Headers('range') rangeHeader: string | undefined,
+    @Res() res: Response,
+  ) {
+    const { headers, status, stream } =
+      await this.moviesService.createStreamResponse(omdbMovieId, rangeHeader);
 
-    res.status(status)
-    res.set(headers)
+    res.status(status);
+    res.set(headers);
 
     if (!stream) {
-      res.end()
-      return
+      res.end();
+      return;
     }
 
-    res.flushHeaders?.()
+    res.flushHeaders?.();
 
     const onClose = () => {
-      stream.off('error', onError)
-      stream.off('end', onEnd)
-      stream.destroy()
-    }
+      stream.off('error', onError);
+      stream.off('end', onEnd);
+      stream.destroy();
+    };
 
     const onEnd = () => {
-      res.off('close', onClose)
-      stream.off('error', onError)
-    }
+      res.off('close', onClose);
+      stream.off('error', onError);
+    };
 
     const onError = (error: unknown) => {
-      res.off('close', onClose)
-      stream.off('end', onEnd)
-      const normalizedError = error instanceof Error ? error : new Error(String(error))
-      res.destroy(normalizedError)
-    }
+      res.off('close', onClose);
+      stream.off('end', onEnd);
+      const normalizedError =
+        error instanceof Error ? error : new Error(String(error));
+      res.destroy(normalizedError);
+    };
 
-    res.once('close', onClose)
-    stream.once('end', onEnd)
-    stream.once('error', onError)
+    res.once('close', onClose);
+    stream.once('end', onEnd);
+    stream.once('error', onError);
 
-    stream.pipe(res)
+    stream.pipe(res);
   }
 
   @Get('subtitle')
@@ -170,6 +197,6 @@ export class MoviesController {
   @Delete('local/:imdbId')
   @UseGuards(AuthGuard)
   async deleteMovie(@Param('imdbId') imdbId: string) {
-    return await this.moviesService.deleteMovie(imdbId)
+    return await this.moviesService.deleteMovie(imdbId);
   }
 }

@@ -39,11 +39,17 @@ services:
           path: ./server/src
           target: /usr/src/app/src
         - action: sync
+          path: ./server/libs
+          target: /usr/src/app/libs
+        - action: sync
           path: ./server/tsconfig.json
           target: /usr/src/app/tsconfig.json
         - action: sync
           path: ./server/nest-cli.json
           target: /usr/src/app/nest-cli.json
+        - action: sync
+          path: ./server/webpack.config.js
+          target: /usr/src/app/webpack.config.js
         - action: rebuild
           path: ./server/package.json
         - action: rebuild

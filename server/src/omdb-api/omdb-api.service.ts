@@ -35,7 +35,7 @@ export class OmdbApiService {
     return `?${params.toString()}`;
   }
 
-  async getMovies({ title, page = 1 }: GetMoviesDto) {
+  async getMovies({ title, page = 1 }: Pick<GetMoviesDto, 'title' | 'page'>) {
     const query = this.buildQuery([
       { param: 's', value: title },
       { param: 'page', value: page },

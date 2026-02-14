@@ -1,6 +1,6 @@
 import { BadRequestException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GetMovieDto, GetLocalMoviesDto, omdbMovieSchema, GetMoviesDto, LocalMovie, OmdbMovie } from './types';
+import { GetMovieDto, GetLocalMoviesDto, omdbMovieSchema, GetMoviesDto, LocalMovie, OmdbMovie, GetLocalMoviesQueryDto } from './types';
 import { GetCatalogDto } from './types/dto/get-catalog.dto';
 import { Client as MinioClient } from 'minio';
 import { Database } from 'src/database/types';
@@ -14,6 +14,7 @@ import { OmdbApiService } from 'src/omdb-api/omdb-api.service';
 import { MetadataService } from 'src/metadata/metadata.service';
 import { MovieRequestsService } from 'src/movie-requests/movie-requests.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { Sanitizer } from '@app/utils/sanitizer/sanitizer';
 
 interface MovieStreamResponse {
   status: number;
@@ -555,59 +556,9 @@ export class MoviesService {
     return bounded;
   }
 
-  private static parseNumericQueryParam(value: unknown) {
-    if (value === undefined || value === null || value === '') {
-      return null;
-    }
-
-    const parsed = Number.parseInt(String(value), 10);
-
-    if (Number.isNaN(parsed)) {
-      return null;
-    }
-
-    return parsed;
-  }
-
-  private static parseFloatQueryParam(value: unknown) {
-    if (value === undefined || value === null || value === '') {
-      return null;
-    }
-
-    const parsed = Number.parseFloat(String(value));
-
-    if (Number.isNaN(parsed)) {
-      return null;
-    }
-
-    return parsed;
-  }
-
-  private static parseBooleanQueryParam(value: unknown) {
-    if (typeof value === 'boolean') {
-      return value;
-    }
-
-    if (typeof value !== 'string') {
-      return null;
-    }
-
-    const normalized = value.trim().toLowerCase();
-
-    if (normalized === 'true') {
-      return true;
-    }
-
-    if (normalized === 'false') {
-      return false;
-    }
-
-    return null;
-  }
-
-  private static resolveLocalMoviesPagination(query: GetLocalMoviesDto = {}) {
-    const rawPage = MoviesService.parseNumericQueryParam(query.page);
-    const rawLimit = MoviesService.parseNumericQueryParam(query.limit);
+  static resolveLocalMoviesPagination(query: GetLocalMoviesDto = {}) {
+    const rawPage = Sanitizer.parseNumericQueryParam(query.page);
+    const rawLimit = Sanitizer.parseNumericQueryParam(query.limit);
 
     const page = rawPage && rawPage > 0 ? rawPage : 1;
     const limit = rawLimit && rawLimit > 0 ? Math.min(rawLimit, 50) : 10;
@@ -615,52 +566,8 @@ export class MoviesService {
     return { page, limit };
   }
 
-  private static normalizeTextQueryParam(value?: string | null) {
-    if (value === undefined || value === null) {
-      return null;
-    }
-
-    const text = value.trim();
-    return text.length > 0 ? text : null;
-  }
-
-  private static buildSearchPattern(rawTerm?: string | null) {
-    if (!rawTerm) {
-      return null;
-    }
-
-    const escaped = rawTerm.replace(/[%_]/g, '\\$&');
-    return `%${escaped}%`;
-  }
-
-  private static resolveQuery(query: GetLocalMoviesDto) {
-    const { page, limit } = MoviesService.resolveLocalMoviesPagination(query);
-    const searchTerm = MoviesService.normalizeTextQueryParam(query.query);
-    const searchPattern = MoviesService.buildSearchPattern(searchTerm);
-    const genreFilter = MoviesService.normalizeTextQueryParam(query.genre);
-    const yearFilter = MoviesService.parseNumericQueryParam(query.year);
-    const minRatingFilter = MoviesService.parseFloatQueryParam(query.rating);
-    const availabilityFilter = MoviesService.parseBooleanQueryParam(query.available);
-    const offset = (page - 1) * limit;
-
-    const sortBy: 'title' | 'year' | 'rating' =
-      query.sortBy === 'rating' || query.sortBy === 'year' ? query.sortBy : 'title';
-
-    return {
-      pagination: { page, limit },
-      searchPattern,
-      genreFilter,
-      yearFilter,
-      minRatingFilter,
-      availabilityFilter,
-      offset,
-      sortBy,
-
-    };
-  }
-
   private buildLocalMoviesQuery(query: GetLocalMoviesDto = {}) {
-    const { genreFilter, minRatingFilter, offset, pagination: { limit }, searchPattern, yearFilter, sortBy } = MoviesService.resolveQuery(query);
+    const { genreFilter, minRatingFilter, offset, pagination: { limit }, searchPattern, yearFilter, sortBy } = new GetLocalMoviesQueryDto(query);
     let moviesQuery = this.db
       .selectFrom('local_movies as lm')
       .leftJoin('movie_metadata as mm', 'mm.omdb_id', 'lm.omdb_id')
@@ -709,7 +616,7 @@ export class MoviesService {
     }
 
     if (genreFilter) {
-      const genrePattern = MoviesService.buildSearchPattern(genreFilter);
+      const genrePattern = Sanitizer.buildSearchPattern(genreFilter);
       moviesQuery = moviesQuery.where('mm.genre', 'ilike', genrePattern);
       subTotalQuery = subTotalQuery.where('mm.genre', 'ilike', genrePattern);
       comingSoonQuery = comingSoonQuery.where('mm.genre', 'ilike', genrePattern);
@@ -749,7 +656,7 @@ export class MoviesService {
   }
 
   private buildUnfulfilledRequestsQuery(query: GetLocalMoviesDto = {}) {
-    const { genreFilter, minRatingFilter, offset, pagination: { limit }, searchPattern, yearFilter, sortBy } = MoviesService.resolveQuery(query);
+    const { genreFilter, minRatingFilter, offset, pagination: { limit }, searchPattern, yearFilter, sortBy } = new GetLocalMoviesQueryDto(query);
 
     let requestsQuery = this.db
       .selectFrom('movie_requests as mr')
@@ -794,7 +701,7 @@ export class MoviesService {
     }
 
     if (genreFilter) {
-      const genrePattern = MoviesService.buildSearchPattern(genreFilter);
+      const genrePattern = Sanitizer.buildSearchPattern(genreFilter);
       requestsQuery = requestsQuery.where('mm.genre', 'ilike', genrePattern);
       countQuery = countQuery.where('mm.genre', 'ilike', genrePattern);
     }
@@ -831,7 +738,7 @@ export class MoviesService {
   }
 
   async getLocalMovies(query: GetLocalMoviesDto = {}) {
-    const { availabilityFilter } = MoviesService.resolveQuery(query);
+    const { availabilityFilter } = new GetLocalMoviesQueryDto(query);
 
     // Handle different availability filters
     if (availabilityFilter === false) {
@@ -975,7 +882,7 @@ export class MoviesService {
   }
 
   private async getAllMoviesAndRequests(query: GetLocalMoviesDto = {}) {
-    const { pagination: { limit, page }, offset } = MoviesService.resolveQuery(query);
+    const { pagination: { limit, page }, offset } = new GetLocalMoviesQueryDto(query);
 
     // Get both available movies and unfulfilled requests
     const { moviesQuery: availableQuery, totalQuery, comingSoonQuery } = this.buildLocalMoviesQuery(query);

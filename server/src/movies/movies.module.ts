@@ -41,4 +41,4 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
   providers: [MoviesService],
   controllers: [MoviesController],
 })
-export class MoviesModule {}
+export class MoviesModule { }
